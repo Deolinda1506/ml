@@ -9,8 +9,8 @@ import json
 from datetime import datetime
 import logging
 
-from .model import GlaucomaDetectionModel
-from .preprocessing import ImagePreprocessor
+from model import GlaucomaDetectionModel
+from preprocessing import ImagePreprocessor
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
