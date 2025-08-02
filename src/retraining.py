@@ -6,6 +6,7 @@ from datetime import datetime
 from typing import Dict, List, Optional, Any
 import numpy as np
 from pathlib import Path
+import gc
 
 from database import get_database_manager
 from preprocessing import ImagePreprocessor
@@ -21,6 +22,7 @@ class RetrainingService:
         self.training_progress = 0
         self.training_status = "idle"
         self.training_error = None
+        self.training_details = {}
         
         # Create directories if they don't exist
         os.makedirs(upload_dir, exist_ok=True)
@@ -146,6 +148,7 @@ class RetrainingService:
             self.training_status = "preparing_data"
             self.training_progress = 0
             self.training_error = None
+            self.training_details = {}
             
             # Log training start
             training_id = self.db_manager.log_training_start(
@@ -164,6 +167,16 @@ class RetrainingService:
             if len(train_images) == 0:
                 raise ValueError("No training data available")
             
+            # Update training details
+            self.training_details = {
+                'total_samples': len(train_images),
+                'validation_samples': len(val_images),
+                'epochs': epochs,
+                'batch_size': batch_size,
+                'learning_rate': learning_rate,
+                'model_type': model_type
+            }
+            
             self.training_status = "creating_model"
             self.training_progress = 20
             
@@ -175,7 +188,7 @@ class RetrainingService:
             self.training_status = "training"
             self.training_progress = 30
             
-            # Create data generators
+            # Create data generators with enhanced augmentation for larger datasets
             train_generator, val_generator = self.preprocessor.get_data_generators(
                 train_images, train_labels, batch_size=batch_size
             )
@@ -227,6 +240,10 @@ class RetrainingService:
             # Cleanup old backups
             self.cleanup_old_backups()
             
+            # Clear memory
+            del train_images, train_labels, val_images, val_labels
+            gc.collect()
+            
         except Exception as e:
             self.training_error = str(e)
             self.training_status = "error"
@@ -241,20 +258,25 @@ class RetrainingService:
     def _prepare_combined_data(self):
         """Prepare combined training data from original and new data"""
         # Load original training data
+        print("Loading original training data...")
         original_train_images, original_train_labels = self.preprocessor.load_dataset('../data/train')
         
         # Load new data from uploads
+        print("Loading new training data...")
         new_train_images, new_train_labels = self.preprocessor.load_dataset(self.upload_dir)
         
         # Combine data
         if len(new_train_images) > 0:
+            print(f"Combining {len(original_train_images)} original + {len(new_train_images)} new images")
             combined_images = np.concatenate([original_train_images, new_train_images])
             combined_labels = np.concatenate([original_train_labels, new_train_labels])
         else:
+            print(f"Using {len(original_train_images)} original images only")
             combined_images = original_train_images
             combined_labels = original_train_labels
         
         # Load test data for validation
+        print("Loading test data for validation...")
         test_images, test_labels = self.preprocessor.load_dataset('../data/test')
         
         return combined_images, combined_labels, test_images, test_labels
@@ -265,7 +287,8 @@ class RetrainingService:
             'is_training': self.is_training,
             'status': self.training_status,
             'progress': self.training_progress,
-            'error': self.training_error
+            'error': self.training_error,
+            'details': self.training_details
         }
     
     def get_training_history(self, limit: int = 10) -> List[Dict]:
