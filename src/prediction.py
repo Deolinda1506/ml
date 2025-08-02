@@ -215,4 +215,87 @@ class PredictionService:
         
         return stats
     
- 
+    def validate_image(self, image_data: Union[str, bytes, np.ndarray]) -> bool:
+        """Validate if image data is valid"""
+        try:
+            if isinstance(image_data, str):
+                if os.path.exists(image_data):
+                    # Check if it's a valid image file
+                    with Image.open(image_data) as img:
+                        img.verify()
+                    return True
+                else:
+                    # Try to decode base64
+                    try:
+                        image_bytes = base64.b64decode(image_data)
+                        with Image.open(io.BytesIO(image_bytes)) as img:
+                            img.verify()
+                        return True
+                    except:
+                        return False
+            
+            elif isinstance(image_data, bytes):
+                with Image.open(io.BytesIO(image_data)) as img:
+                    img.verify()
+                return True
+            
+            elif isinstance(image_data, np.ndarray):
+                # Check if array has valid shape
+                if len(image_data.shape) == 3 and image_data.shape[2] in [1, 3, 4]:
+                    return True
+                return False
+            
+            return False
+            
+        except Exception:
+            return False
+    
+    def get_model_info(self) -> Dict:
+        """Get information about the loaded model"""
+        if self.model is None:
+            return {
+                'model_loaded': False,
+                'model_path': self.model_path,
+                'error': 'Model not loaded'
+            }
+        
+        try:
+            model_info = {
+                'model_loaded': True,
+                'model_path': self.model_path,
+                'input_shape': self.model.input_shape,
+                'model_type': self.model.model_type,
+                'total_params': self.model.model.count_params() if self.model.model else 0
+            }
+            
+            if self.model.metrics:
+                model_info['metrics'] = self.model.metrics
+            
+            return model_info
+            
+        except Exception as e:
+            return {
+                'model_loaded': True,
+                'model_path': self.model_path,
+                'error': str(e)
+            }
+
+# Global prediction service instance
+prediction_service = None
+
+def get_prediction_service() -> PredictionService:
+    """Get global prediction service instance"""
+    global prediction_service
+    if prediction_service is None:
+        prediction_service = PredictionService()
+    return prediction_service
+
+def predict_image(image_data: Union[str, bytes, np.ndarray]) -> Dict:
+    """Convenience function for single image prediction"""
+    service = get_prediction_service()
+    return service.predict_single(image_data)
+
+def predict_batch_images(image_data_list: List[Union[str, bytes, np.ndarray]]) -> List[Dict]:
+    """Convenience function for batch image prediction"""
+    service = get_prediction_service()
+    return service.predict_batch(image_data_list) 

@@ -1,14 +1,6 @@
-import os
-import cv2
 import numpy as np
-from PIL import Image
-import matplotlib.pyplot as plt
-import seaborn as sns
-from sklearn.model_selection import train_test_split
 from tensorflow.keras.preprocessing.image import ImageDataGenerator
-import json
-from tqdm import tqdm
-import gc
+from tensorflow.keras.utils import to_categorical
 
 class ImagePreprocessor:
     def __init__(self, img_size=(224, 224)):
@@ -113,7 +105,65 @@ class ImagePreprocessor:
         print(f"Successfully loaded {len(images)} images from {data_dir}")
         return np.array(images), np.array(labels)
     
-
+    def load_dataset_in_batches(self, data_dir, batch_size=1000, show_progress=True):
+        """Load dataset in batches to handle very large datasets"""
+        all_images = []
+        all_labels = []
+        
+        # Define class mapping
+        class_mapping = {'glaucoma': 1, 'normal': 0}
+        
+        # Collect all image paths first
+        image_paths = []
+        labels = []
+        
+        for class_name, class_id in class_mapping.items():
+            class_dir = os.path.join(data_dir, class_name)
+            if not os.path.exists(class_dir):
+                continue
+                
+            image_files = [f for f in os.listdir(class_dir) 
+                          if f.lower().endswith(('.png', '.jpg', '.jpeg'))]
+            
+            for filename in image_files:
+                image_path = os.path.join(class_dir, filename)
+                image_paths.append(image_path)
+                labels.append(class_id)
+        
+        if len(image_paths) == 0:
+            print(f"Warning: No images found in {data_dir}")
+            return np.array([]), np.array([])
+        
+        # Process in batches
+        if show_progress:
+            pbar = tqdm(total=len(image_paths), desc=f"Loading {os.path.basename(data_dir)}")
+        
+        for i in range(0, len(image_paths), batch_size):
+            batch_paths = image_paths[i:i+batch_size]
+            batch_labels = labels[i:i+batch_size]
+            
+            batch_images = []
+            for image_path in batch_paths:
+                img = self.load_and_preprocess_image(image_path)
+                if img is not None:
+                    batch_images.append(img)
+                
+                if show_progress:
+                    pbar.update(1)
+            
+            if batch_images:
+                all_images.extend(batch_images)
+                all_labels.extend(batch_labels[:len(batch_images)])
+            
+            # Clear memory
+            del batch_images
+            gc.collect()
+        
+        if show_progress:
+            pbar.close()
+        
+        print(f"Successfully loaded {len(all_images)} images from {data_dir}")
+        return np.array(all_images), np.array(all_labels)
     
     def create_data_generators(self, train_images, train_labels, validation_split=0.2):
         """Create data generators with augmentation"""
@@ -259,4 +309,38 @@ class ImagePreprocessor:
         
         return analysis
     
- 
+    def validate_dataset_integrity(self, data_dir):
+        """Validate dataset integrity and report issues"""
+        print(f"Validating dataset integrity for: {data_dir}")
+        
+        issues = []
+        analysis = self.analyze_dataset(data_dir)
+        
+        # Check for corrupted images
+        if analysis['corrupted_images'] > 0:
+            issues.append(f"Found {analysis['corrupted_images']} corrupted images")
+        
+        # Check class balance
+        class_counts = analysis['class_distribution']
+        if len(class_counts) == 2:
+            count_diff = abs(class_counts['glaucoma'] - class_counts['normal'])
+            if count_diff > min(class_counts.values()) * 0.2:  # More than 20% difference
+                issues.append(f"Class imbalance detected: {class_counts}")
+        
+        # Check for empty classes
+        for class_name, count in class_counts.items():
+            if count == 0:
+                issues.append(f"Empty class: {class_name}")
+        
+        # Check file format consistency
+        if len(analysis['file_formats']) > 2:
+            issues.append(f"Multiple file formats detected: {analysis['file_formats']}")
+        
+        if issues:
+            print("Dataset validation issues found:")
+            for issue in issues:
+                print(f"  - {issue}")
+        else:
+            print("Dataset validation passed!")
+        
+        return issues, analysis 

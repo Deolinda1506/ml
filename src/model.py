@@ -1,12 +1,23 @@
+
 import os
+import logging
 import numpy as np
+from pymongo import MongoClient
+from gridfs import GridFS
+from PIL import Image
+import io
+import tensorflow as tf
+from tensorflow.keras.models import load_model
+from tensorflow.keras.optimizers import Adam
+from tensorflow.keras.utils import to_categorical
+from dotenv import load_dotenv
 import matplotlib.pyplot as plt
 import seaborn as sns
 from sklearn.metrics import classification_report, confusion_matrix, roc_auc_score, roc_curve
 import tensorflow as tf
 from tensorflow import keras
 from tensorflow.keras import layers, models, optimizers
-
+from tensorflow.keras.applications import VGG16, ResNet50, EfficientNetB0
 from tensorflow.keras.callbacks import EarlyStopping, ReduceLROnPlateau, ModelCheckpoint
 import json
 from datetime import datetime
@@ -58,12 +69,41 @@ class GlaucomaDetectionModel:
         
         return model
     
-
+    def build_pretrained_model(self, model_type='vgg16', fine_tune_layers=10):
+        """Build a model using pretrained weights"""
+        if model_type == 'vgg16':
+            base_model = VGG16(weights='imagenet', include_top=False, input_shape=(*self.img_size, 3))
+        elif model_type == 'resnet50':
+            base_model = ResNet50(weights='imagenet', include_top=False, input_shape=(*self.img_size, 3))
+        elif model_type == 'efficientnet':
+            base_model = EfficientNetB0(weights='imagenet', include_top=False, input_shape=(*self.img_size, 3))
+        else:
+            raise ValueError(f"Unsupported model type: {model_type}")
+        
+        # Freeze base model layers
+        base_model.trainable = False
+        
+        # Create new model on top
+        model = models.Sequential([
+            base_model,
+            layers.GlobalAveragePooling2D(),
+            layers.Dense(512, activation='relu'),
+            layers.BatchNormalization(),
+            layers.Dropout(0.5),
+            layers.Dense(256, activation='relu'),
+            layers.BatchNormalization(),
+            layers.Dropout(0.5),
+            layers.Dense(self.num_classes, activation='softmax')
+        ])
+        
+        return model, base_model
     
     def create_model(self, model_type='custom', **kwargs):
         """Create model based on type"""
         if model_type == 'custom':
             self.model = self.build_custom_model()
+        elif model_type in ['vgg16', 'resnet50', 'efficientnet']:
+            self.model, self.base_model = self.build_pretrained_model(model_type, **kwargs)
         else:
             raise ValueError(f"Unsupported model type: {model_type}")
         
@@ -215,25 +255,43 @@ class GlaucomaDetectionModel:
             print("No training history available")
             return
         
-        fig, axes = plt.subplots(1, 2, figsize=(12, 5))
+        fig, axes = plt.subplots(2, 2, figsize=(15, 10))
         
         # Accuracy
-        axes[0].plot(self.history.history['accuracy'], label='Training Accuracy')
-        axes[0].plot(self.history.history['val_accuracy'], label='Validation Accuracy')
-        axes[0].set_title('Model Accuracy')
-        axes[0].set_xlabel('Epoch')
-        axes[0].set_ylabel('Accuracy')
-        axes[0].legend()
-        axes[0].grid(True)
+        axes[0, 0].plot(self.history.history['accuracy'], label='Training Accuracy')
+        axes[0, 0].plot(self.history.history['val_accuracy'], label='Validation Accuracy')
+        axes[0, 0].set_title('Model Accuracy')
+        axes[0, 0].set_xlabel('Epoch')
+        axes[0, 0].set_ylabel('Accuracy')
+        axes[0, 0].legend()
+        axes[0, 0].grid(True)
         
         # Loss
-        axes[1].plot(self.history.history['loss'], label='Training Loss')
-        axes[1].plot(self.history.history['val_loss'], label='Validation Loss')
-        axes[1].set_title('Model Loss')
-        axes[1].set_xlabel('Epoch')
-        axes[1].set_ylabel('Loss')
-        axes[1].legend()
-        axes[1].grid(True)
+        axes[0, 1].plot(self.history.history['loss'], label='Training Loss')
+        axes[0, 1].plot(self.history.history['val_loss'], label='Validation Loss')
+        axes[0, 1].set_title('Model Loss')
+        axes[0, 1].set_xlabel('Epoch')
+        axes[0, 1].set_ylabel('Loss')
+        axes[0, 1].legend()
+        axes[0, 1].grid(True)
+        
+        # Precision
+        axes[1, 0].plot(self.history.history['precision'], label='Training Precision')
+        axes[1, 0].plot(self.history.history['val_precision'], label='Validation Precision')
+        axes[1, 0].set_title('Model Precision')
+        axes[1, 0].set_xlabel('Epoch')
+        axes[1, 0].set_ylabel('Precision')
+        axes[1, 0].legend()
+        axes[1, 0].grid(True)
+        
+        # Recall
+        axes[1, 1].plot(self.history.history['recall'], label='Training Recall')
+        axes[1, 1].plot(self.history.history['val_recall'], label='Validation Recall')
+        axes[1, 1].set_title('Model Recall')
+        axes[1, 1].set_xlabel('Epoch')
+        axes[1, 1].set_ylabel('Recall')
+        axes[1, 1].legend()
+        axes[1, 1].grid(True)
         
         plt.tight_layout()
         
@@ -273,4 +331,31 @@ class GlaucomaDetectionModel:
         
         return summary
 
- 
+def create_and_train_model(train_images, train_labels, test_images, test_labels,
+                          model_type='custom', epochs=50, batch_size=32,
+                          learning_rate=0.001, model_save_path=None):
+    """Convenience function to create and train a model"""
+    
+    # Create model
+    model = GlaucomaDetectionModel()
+    model.create_model(model_type)
+    model.compile_model(learning_rate=learning_rate)
+    
+    # Create data generators
+    from preprocessing import ImagePreprocessor
+    preprocessor = ImagePreprocessor()
+    train_generator, val_generator = preprocessor.get_data_generators(
+        train_images, train_labels, batch_size=batch_size
+    )
+    
+    # Train model
+    history = model.train(
+        train_generator, val_generator,
+        epochs=epochs, batch_size=batch_size,
+        model_save_path=model_save_path
+    )
+    
+    # Evaluate model
+    metrics = model.evaluate(test_images, test_labels)
+    
+    return model, history, metrics 

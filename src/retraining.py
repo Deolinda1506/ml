@@ -264,31 +264,28 @@ class RetrainingService:
         finally:
             self.is_training = False
     
+   # filepath: /workspaces/ml/src/retraining.py
+# ...existing code...
+from sklearn.model_selection import train_test_split
+
     def _prepare_combined_data(self):
-        """Prepare combined training data from original and new data"""
-        # Load original training data
-        print("Loading original training data...")
+        # Load original and new data as before
         original_train_images, original_train_labels = self.preprocessor.load_dataset('../data/train')
-        
-        # Load new data from uploads
-        print("Loading new training data...")
         new_train_images, new_train_labels = self.preprocessor.load_dataset(self.upload_dir)
-        
-        # Combine data
         if len(new_train_images) > 0:
-            print(f"Combining {len(original_train_images)} original + {len(new_train_images)} new images")
-            combined_images = np.concatenate([original_train_images, new_train_images])
+           combined_images = np.concatenate([original_train_images, new_train_images])
             combined_labels = np.concatenate([original_train_labels, new_train_labels])
         else:
-            print(f"Using {len(original_train_images)} original images only")
             combined_images = original_train_images
             combined_labels = original_train_labels
+
+        # Split combined data into train/val
+        X_train, X_val, y_train, y_val = train_test_split(
+            combined_images, combined_labels, test_size=0.2, random_state=42, stratify=combined_labels
+    )
+    return X_train, y_train, X_val, y_val
         
-        # Load test data for validation
-        print("Loading test data for validation...")
-        test_images, test_labels = self.preprocessor.load_dataset('../data/test')
-        
-        return combined_images, combined_labels, test_images, test_labels
+  
     
     def get_training_status(self) -> Dict[str, Any]:
         """Get current training status"""
