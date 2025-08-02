@@ -187,6 +187,36 @@ def main():
     training_time = datetime.now() - start_time
     print(f"   Training completed in {training_time}")
     
+    # Print training results
+    print("\n" + "="*40)
+    print("TRAINING RESULTS")
+    print("="*40)
+    
+    if history is not None:
+        final_accuracy = history.history['accuracy'][-1]
+        final_val_accuracy = history.history['val_accuracy'][-1]
+        best_val_accuracy = max(history.history['val_accuracy'])
+        
+        print(f"Training Accuracy: {final_accuracy:.4f}")
+        print(f"Validation Accuracy: {final_val_accuracy:.4f}")
+        print(f"Best Validation: {best_val_accuracy:.4f}")
+        
+        # Save basic results
+        training_summary = {
+            'training_accuracy': float(final_accuracy),
+            'validation_accuracy': float(final_val_accuracy),
+            'best_validation_accuracy': float(best_val_accuracy),
+            'epochs': len(history.history['accuracy'])
+        }
+        
+        with open('../models/training_results.json', 'w') as f:
+            json.dump(training_summary, f, indent=4)
+        
+        print("✅ Results saved to ../models/training_results.json")
+    
+    else:
+        print("❌ Training history not available")
+    
     # Reload test data for evaluation
     print("\n9. Reloading test data for evaluation...")
     test_images, test_labels = preprocessor.load_dataset('../data/test')
@@ -275,7 +305,6 @@ def main():
     print("TRAINING COMPLETED SUCCESSFULLY!")
     print("="*60)
     print(f"Model accuracy: {metrics['accuracy']:.4f}")
-    print(f"Model F1-score: {metrics['f1_score']:.4f}")
     print(f"Model saved to: ../models/glaucoma_model.h5")
     print(f"Dataset size: {train_total + test_total} images")
     print("You can now run the application with: python src/app.py")

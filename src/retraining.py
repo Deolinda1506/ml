@@ -234,6 +234,15 @@ class RetrainingService:
                 model_path=model_path
             )
             
+            # Print training results
+            print("\n" + "="*40)
+            print("RETRAINING RESULTS")
+            print("="*40)
+            print(f"Training Accuracy: {metrics['accuracy']:.4f}")
+            print(f"Training Loss: {metrics['loss']:.4f}")
+            print(f"Model saved to: {model_path}")
+            print("✅ Retraining completed successfully!")
+            
             self.training_progress = 100
             self.training_status = "completed"
             

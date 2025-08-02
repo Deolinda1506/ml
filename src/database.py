@@ -62,18 +62,7 @@ class DatabaseManager:
             )
         ''')
         
-        # System metrics table
-        cursor.execute('''
-            CREATE TABLE IF NOT EXISTS system_metrics (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
-                cpu_usage REAL,
-                memory_usage REAL,
-                disk_usage REAL,
-                active_connections INTEGER,
-                requests_per_minute REAL
-            )
-        ''')
+
         
         # Model versions table
         cursor.execute('''
@@ -285,38 +274,7 @@ class DatabaseManager:
         
         return [dict(zip(columns, row)) for row in rows]
     
-    def log_system_metrics(self, cpu_usage: float, memory_usage: float, disk_usage: float, 
-                          active_connections: int, requests_per_minute: float):
-        """Log system metrics"""
-        conn = sqlite3.connect(self.db_path)
-        cursor = conn.cursor()
-        
-        cursor.execute('''
-            INSERT INTO system_metrics (cpu_usage, memory_usage, disk_usage, 
-                                      active_connections, requests_per_minute)
-            VALUES (?, ?, ?, ?, ?)
-        ''', (cpu_usage, memory_usage, disk_usage, active_connections, requests_per_minute))
-        
-        conn.commit()
-        conn.close()
-    
-    def get_system_metrics(self, hours: int = 24) -> List[Dict]:
-        """Get system metrics for the last N hours"""
-        conn = sqlite3.connect(self.db_path)
-        cursor = conn.cursor()
-        
-        cursor.execute('''
-            SELECT * FROM system_metrics 
-            WHERE timestamp >= datetime('now', '-{} hours')
-            ORDER BY timestamp DESC
-        '''.format(hours))
-        
-        columns = [description[0] for description in cursor.description]
-        rows = cursor.fetchall()
-        
-        conn.close()
-        
-        return [dict(zip(columns, row)) for row in rows]
+
     
     def save_model_version(self, version: str, model_path: str, accuracy: float, 
                           description: str = "", is_active: bool = True):
@@ -356,25 +314,7 @@ class DatabaseManager:
             return dict(zip(columns, result))
         return None
     
-    def cleanup_old_data(self, days: int = 30):
-        """Clean up old data"""
-        conn = sqlite3.connect(self.db_path)
-        cursor = conn.cursor()
-        
-        # Clean up old predictions
-        cursor.execute('''
-            DELETE FROM predictions 
-            WHERE timestamp < datetime('now', '-{} days')
-        '''.format(days))
-        
-        # Clean up old system metrics
-        cursor.execute('''
-            DELETE FROM system_metrics 
-            WHERE timestamp < datetime('now', '-{} days')
-        '''.format(days))
-        
-        conn.commit()
-        conn.close()
+
 
 # Global database manager instance
 db_manager = DatabaseManager()
