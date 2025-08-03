@@ -1,361 +1,163 @@
-
 import os
-import logging
 import numpy as np
-from pymongo import MongoClient
-from gridfs import GridFS
-from PIL import Image
-import io
-import tensorflow as tf
-from tensorflow.keras.models import load_model
+from tensorflow.keras.models import Sequential
+from tensorflow.keras.layers import Conv2D, MaxPooling2D, Flatten, Dense, Dropout, BatchNormalization
 from tensorflow.keras.optimizers import Adam
-from tensorflow.keras.utils import to_categorical
-from dotenv import load_dotenv
-import matplotlib.pyplot as plt
-import seaborn as sns
-from sklearn.metrics import classification_report, confusion_matrix, roc_auc_score, roc_curve
-import tensorflow as tf
-from tensorflow import keras
-from tensorflow.keras import layers, models, optimizers
-from tensorflow.keras.applications import VGG16, ResNet50, EfficientNetB0
-from tensorflow.keras.callbacks import EarlyStopping, ReduceLROnPlateau, ModelCheckpoint
-import json
-from datetime import datetime
+from tensorflow.keras.metrics import Precision, Recall, AUC
+from tensorflow.keras.preprocessing.image import ImageDataGenerator
 
-class GlaucomaDetectionModel:
-    def __init__(self, img_size=(224, 224), num_classes=2):
-        self.img_size = img_size
-        self.num_classes = num_classes
-        self.model = None
-        self.history = None
-        
-    def build_custom_model(self):
-        """Build a custom CNN model"""
-        model = models.Sequential([
-            # First Convolutional Block
-            layers.Conv2D(32, (3, 3), activation='relu', input_shape=(*self.img_size, 3)),
-            layers.BatchNormalization(),
-            layers.MaxPooling2D((2, 2)),
-            layers.Dropout(0.25),
-            
-            # Second Convolutional Block
-            layers.Conv2D(64, (3, 3), activation='relu'),
-            layers.BatchNormalization(),
-            layers.MaxPooling2D((2, 2)),
-            layers.Dropout(0.25),
-            
-            # Third Convolutional Block
-            layers.Conv2D(128, (3, 3), activation='relu'),
-            layers.BatchNormalization(),
-            layers.MaxPooling2D((2, 2)),
-            layers.Dropout(0.25),
-            
-            # Fourth Convolutional Block
-            layers.Conv2D(256, (3, 3), activation='relu'),
-            layers.BatchNormalization(),
-            layers.MaxPooling2D((2, 2)),
-            layers.Dropout(0.25),
-            
-            # Flatten and Dense Layers
-            layers.Flatten(),
-            layers.Dense(512, activation='relu'),
-            layers.BatchNormalization(),
-            layers.Dropout(0.5),
-            layers.Dense(256, activation='relu'),
-            layers.BatchNormalization(),
-            layers.Dropout(0.5),
-            layers.Dense(self.num_classes, activation='softmax')
-        ])
-        
-        return model
-    
-    def build_pretrained_model(self, model_type='vgg16', fine_tune_layers=10):
-        """Build a model using pretrained weights"""
-        if model_type == 'vgg16':
-            base_model = VGG16(weights='imagenet', include_top=False, input_shape=(*self.img_size, 3))
-        elif model_type == 'resnet50':
-            base_model = ResNet50(weights='imagenet', include_top=False, input_shape=(*self.img_size, 3))
-        elif model_type == 'efficientnet':
-            base_model = EfficientNetB0(weights='imagenet', include_top=False, input_shape=(*self.img_size, 3))
-        else:
-            raise ValueError(f"Unsupported model type: {model_type}")
-        
-        # Freeze base model layers
-        base_model.trainable = False
-        
-        # Create new model on top
-        model = models.Sequential([
-            base_model,
-            layers.GlobalAveragePooling2D(),
-            layers.Dense(512, activation='relu'),
-            layers.BatchNormalization(),
-            layers.Dropout(0.5),
-            layers.Dense(256, activation='relu'),
-            layers.BatchNormalization(),
-            layers.Dropout(0.5),
-            layers.Dense(self.num_classes, activation='softmax')
-        ])
-        
-        return model, base_model
-    
-    def create_model(self, model_type='custom', **kwargs):
-        """Create model based on type"""
-        if model_type == 'custom':
-            self.model = self.build_custom_model()
-        elif model_type in ['vgg16', 'resnet50', 'efficientnet']:
-            self.model, self.base_model = self.build_pretrained_model(model_type, **kwargs)
-        else:
-            raise ValueError(f"Unsupported model type: {model_type}")
-        
-        return self.model
-    
-    def compile_model(self, learning_rate=0.001, optimizer='adam'):
-        """Compile the model"""
-        if optimizer == 'adam':
-            opt = optimizers.Adam(learning_rate=learning_rate)
-        elif optimizer == 'sgd':
-            opt = optimizers.SGD(learning_rate=learning_rate, momentum=0.9)
-        else:
-            opt = optimizer
-        
-        self.model.compile(
-            optimizer=opt,
-            loss='categorical_crossentropy',
-            metrics=['accuracy', 'precision', 'recall']
-        )
-    
-    def get_callbacks(self, model_save_path=None, patience=10):
-        """Get training callbacks"""
-        callbacks = [
-            EarlyStopping(
-                monitor='val_loss',
-                patience=patience,
-                restore_best_weights=True,
-                verbose=1
-            ),
-            ReduceLROnPlateau(
-                monitor='val_loss',
-                factor=0.5,
-                patience=5,
-                min_lr=1e-7,
-                verbose=1
-            )
-        ]
-        
-        if model_save_path:
-            callbacks.append(
-                ModelCheckpoint(
-                    model_save_path,
-                    monitor='val_accuracy',
-                    save_best_only=True,
-                    verbose=1
-                )
-            )
-        
-        return callbacks
-    
-    def train(self, train_generator, val_generator, epochs=50, batch_size=32, 
-              model_save_path=None, callbacks=None):
-        """Train the model"""
-        if callbacks is None:
-            callbacks = self.get_callbacks(model_save_path)
-        
-        self.history = self.model.fit(
-            train_generator,
-            validation_data=val_generator,
-            epochs=epochs,
-            batch_size=batch_size,
-            callbacks=callbacks,
-            verbose=1
-        )
-        
-        return self.history
-    
-    def evaluate(self, test_images, test_labels):
-        """Evaluate the model"""
-        # Convert labels to categorical
-        from tensorflow.keras.utils import to_categorical
-        test_labels_cat = to_categorical(test_labels, num_classes=self.num_classes)
-        
-        # Predict
-        predictions = self.model.predict(test_images)
-        predicted_classes = np.argmax(predictions, axis=1)
-        
-        # Calculate metrics
-        test_loss, test_accuracy, test_precision, test_recall = self.model.evaluate(
-            test_images, test_labels_cat, verbose=0
-        )
-        
-        # Additional metrics
-        f1_score = 2 * (test_precision * test_recall) / (test_precision + test_recall)
-        auc_score = roc_auc_score(test_labels, predictions[:, 1])
-        
-        # Classification report
-        class_names = ['Normal', 'Glaucoma']
-        report = classification_report(
-            test_labels, predicted_classes, 
-            target_names=class_names, output_dict=True
-        )
-        
-        # Confusion matrix
-        cm = confusion_matrix(test_labels, predicted_classes)
-        
-        metrics = {
-            'accuracy': test_accuracy,
-            'precision': test_precision,
-            'recall': test_recall,
-            'f1_score': f1_score,
-            'auc_score': auc_score,
-            'loss': test_loss,
-            'classification_report': report,
-            'confusion_matrix': cm.tolist(),
-            'predictions': predictions.tolist(),
-            'predicted_classes': predicted_classes.tolist()
-        }
-        
-        return metrics
-    
-    def predict_single(self, image):
-        """Predict single image"""
-        if len(image.shape) == 3:
-            image = np.expand_dims(image, axis=0)
-        
-        prediction = self.model.predict(image, verbose=0)
-        predicted_class = np.argmax(prediction[0])
-        confidence = np.max(prediction[0])
-        
-        return {
-            'class': predicted_class,
-            'confidence': float(confidence),
-            'probabilities': prediction[0].tolist()
-        }
-    
-    def save_model(self, filepath):
-        """Save the model"""
-        # Create directory if it doesn't exist
-        os.makedirs(os.path.dirname(filepath), exist_ok=True)
-        
-        # Save model
-        self.model.save(filepath)
-        
-        # Save training history if available
-        if self.history is not None:
-            history_file = filepath.replace('.h5', '_history.json')
-            with open(history_file, 'w') as f:
-                json.dump(self.history.history, f, indent=4)
-    
-    def load_model(self, filepath):
-        """Load the model"""
-        self.model = keras.models.load_model(filepath)
-        return self.model
-    
-    def plot_training_history(self, save_path=None):
-        """Plot training history"""
-        if self.history is None:
-            print("No training history available")
-            return
-        
-        fig, axes = plt.subplots(2, 2, figsize=(15, 10))
-        
-        # Accuracy
-        axes[0, 0].plot(self.history.history['accuracy'], label='Training Accuracy')
-        axes[0, 0].plot(self.history.history['val_accuracy'], label='Validation Accuracy')
-        axes[0, 0].set_title('Model Accuracy')
-        axes[0, 0].set_xlabel('Epoch')
-        axes[0, 0].set_ylabel('Accuracy')
-        axes[0, 0].legend()
-        axes[0, 0].grid(True)
-        
-        # Loss
-        axes[0, 1].plot(self.history.history['loss'], label='Training Loss')
-        axes[0, 1].plot(self.history.history['val_loss'], label='Validation Loss')
-        axes[0, 1].set_title('Model Loss')
-        axes[0, 1].set_xlabel('Epoch')
-        axes[0, 1].set_ylabel('Loss')
-        axes[0, 1].legend()
-        axes[0, 1].grid(True)
-        
-        # Precision
-        axes[1, 0].plot(self.history.history['precision'], label='Training Precision')
-        axes[1, 0].plot(self.history.history['val_precision'], label='Validation Precision')
-        axes[1, 0].set_title('Model Precision')
-        axes[1, 0].set_xlabel('Epoch')
-        axes[1, 0].set_ylabel('Precision')
-        axes[1, 0].legend()
-        axes[1, 0].grid(True)
-        
-        # Recall
-        axes[1, 1].plot(self.history.history['recall'], label='Training Recall')
-        axes[1, 1].plot(self.history.history['val_recall'], label='Validation Recall')
-        axes[1, 1].set_title('Model Recall')
-        axes[1, 1].set_xlabel('Epoch')
-        axes[1, 1].set_ylabel('Recall')
-        axes[1, 1].legend()
-        axes[1, 1].grid(True)
-        
-        plt.tight_layout()
-        
-        if save_path:
-            plt.savefig(save_path, dpi=300, bbox_inches='tight')
-        
-        plt.show()
-    
-    def plot_confusion_matrix(self, test_labels, predicted_classes, save_path=None):
-        """Plot confusion matrix"""
-        cm = confusion_matrix(test_labels, predicted_classes)
-        
-        plt.figure(figsize=(8, 6))
-        sns.heatmap(cm, annot=True, fmt='d', cmap='Blues',
-                   xticklabels=['Normal', 'Glaucoma'],
-                   yticklabels=['Normal', 'Glaucoma'])
-        plt.title('Confusion Matrix')
-        plt.xlabel('Predicted')
-        plt.ylabel('Actual')
-        
-        if save_path:
-            plt.savefig(save_path, dpi=300, bbox_inches='tight')
-        
-        plt.show()
-    
-    def get_model_summary(self):
-        """Get model summary"""
-        if self.model is None:
-            return "No model available"
-        
-        # Capture model summary
-        from io import StringIO
-        summary_io = StringIO()
-        self.model.summary(print_fn=lambda x: summary_io.write(x + '\n'))
-        summary = summary_io.getvalue()
-        summary_io.close()
-        
-        return summary
+# Dataset configuration for glaucoma detection
+DATASET_PATH = 'data'
+TRAIN_PATH = os.path.join(DATASET_PATH, 'train')
+TEST_PATH = os.path.join(DATASET_PATH, 'test')
+CLASSES = ['normal', 'glaucoma']
+NUM_CLASSES = len(CLASSES)
+INPUT_SHAPE = (224, 224, 3)  # Standard image size for medical imaging
 
-def create_and_train_model(train_images, train_labels, test_images, test_labels,
-                          model_type='custom', epochs=50, batch_size=32,
-                          learning_rate=0.001, model_save_path=None):
-    """Convenience function to create and train a model"""
+def build_model(input_shape=INPUT_SHAPE, num_classes=NUM_CLASSES):
+    """
+    Builds a CNN model for glaucoma detection.
     
-    # Create model
-    model = GlaucomaDetectionModel()
-    model.create_model(model_type)
-    model.compile_model(learning_rate=learning_rate)
-    
-    # Create data generators
-    from preprocessing import ImagePreprocessor
-    preprocessor = ImagePreprocessor()
-    train_generator, val_generator = preprocessor.get_data_generators(
-        train_images, train_labels, batch_size=batch_size
+    Args:
+        input_shape (tuple): Shape of input images (224, 224, 3).
+        num_classes (int): Number of output classes (2 for normal/glaucoma).
+
+    Returns:
+        model (Sequential): Compiled Keras model for glaucoma detection.
+    """
+    model = Sequential([
+        # First convolutional block
+        Conv2D(32, (3, 3), activation='relu', input_shape=input_shape),
+        BatchNormalization(),
+        MaxPooling2D(2, 2),
+        
+        # Second convolutional block
+        Conv2D(64, (3, 3), activation='relu'),
+        BatchNormalization(),
+        MaxPooling2D(2, 2),
+        
+        # Third convolutional block
+        Conv2D(128, (3, 3), activation='relu'),
+        BatchNormalization(),
+        MaxPooling2D(2, 2),
+        
+        # Fourth convolutional block for better feature extraction
+        Conv2D(256, (3, 3), activation='relu'),
+        BatchNormalization(),
+        MaxPooling2D(2, 2),
+        
+        # Flatten and dense layers
+        Flatten(),
+        Dense(256, activation='relu'),
+        Dropout(0.5),
+        Dense(128, activation='relu'),
+        Dropout(0.3),
+        Dense(num_classes, activation='softmax')
+    ])
+
+    # Compile for binary classification (normal vs glaucoma)
+    model.compile(
+        optimizer=Adam(learning_rate=0.001),
+        loss='categorical_crossentropy',
+        metrics=['accuracy', Precision(), Recall(), AUC()]
     )
     
-    # Train model
-    history = model.train(
-        train_generator, val_generator,
-        epochs=epochs, batch_size=batch_size,
-        model_save_path=model_save_path
+    return model
+
+def get_data_generators(batch_size=32, validation_split=0.2):
+    """
+    Creates data generators for training and validation.
+    
+    Args:
+        batch_size (int): Batch size for training.
+        validation_split (float): Fraction of data to use for validation.
+        
+    Returns:
+        tuple: (train_generator, validation_generator)
+    """
+    # Data augmentation for training
+    train_datagen = ImageDataGenerator(
+        rescale=1./255,
+        rotation_range=20,
+        width_shift_range=0.2,
+        height_shift_range=0.2,
+        shear_range=0.2,
+        zoom_range=0.2,
+        horizontal_flip=True,
+        fill_mode='nearest',
+        validation_split=validation_split
     )
     
-    # Evaluate model
-    metrics = model.evaluate(test_images, test_labels)
+    # Only rescaling for validation
+    val_datagen = ImageDataGenerator(
+        rescale=1./255,
+        validation_split=validation_split
+    )
     
-    return model, history, metrics 
+    # Training generator
+    train_generator = train_datagen.flow_from_directory(
+        TRAIN_PATH,
+        target_size=(INPUT_SHAPE[0], INPUT_SHAPE[1]),
+        batch_size=batch_size,
+        class_mode='categorical',
+        classes=CLASSES,
+        subset='training'
+    )
+    
+    # Validation generator
+    val_generator = val_datagen.flow_from_directory(
+        TRAIN_PATH,
+        target_size=(INPUT_SHAPE[0], INPUT_SHAPE[1]),
+        batch_size=batch_size,
+        class_mode='categorical',
+        classes=CLASSES,
+        subset='validation'
+    )
+    
+    return train_generator, val_generator
+
+def get_test_generator(batch_size=32):
+    """
+    Creates data generator for testing.
+    
+    Args:
+        batch_size (int): Batch size for testing.
+        
+    Returns:
+        test_generator: Test data generator
+    """
+    test_datagen = ImageDataGenerator(rescale=1./255)
+    
+    test_generator = test_datagen.flow_from_directory(
+        TEST_PATH,
+        target_size=(INPUT_SHAPE[0], INPUT_SHAPE[1]),
+        batch_size=batch_size,
+        class_mode='categorical',
+        classes=CLASSES,
+        shuffle=False
+    )
+    
+    return test_generator
+
+def calculate_class_weights():
+    """
+    Calculates class weights to handle imbalanced dataset.
+    
+    Returns:
+        dict: Class weights for training
+    """
+    # Count images in each class
+    class_counts = {}
+    for class_name in CLASSES:
+        class_path = os.path.join(TRAIN_PATH, class_name)
+        if os.path.exists(class_path):
+            class_counts[class_name] = len([f for f in os.listdir(class_path) 
+                                          if f.lower().endswith(('.png', '.jpg', '.jpeg'))])
+    
+    # Calculate weights
+    total_samples = sum(class_counts.values())
+    class_weights = {}
+    for i, class_name in enumerate(CLASSES):
+        class_weights[i] = total_samples / (len(CLASSES) * class_counts.get(class_name, 1))
+    
+    return class_weights 

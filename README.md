@@ -1,156 +1,242 @@
-# Glaucoma Detection ML Pipeline
+# 👁️ Glaucoma Detection System
 
-A comprehensive Machine Learning pipeline for glaucoma detection using retinal fundus images. This project demonstrates the complete ML lifecycle from data preprocessing to model deployment and monitoring.
+A deep learning-based system for detecting glaucoma from retinal images using convolutional neural networks (CNN).
 
-## Project Description
+## 🎯 Overview
 
-This project implements an end-to-end Machine Learning pipeline for detecting glaucoma from retinal fundus images. The system includes:
+This project provides a complete pipeline for glaucoma detection, including:
+- **Model Training**: CNN-based image classification
+- **Web Interface**: Streamlit app for easy interaction
+- **API**: FastAPI backend for programmatic access
+- **Data Management**: Upload and manage training data
 
-- **Data Processing**: Image preprocessing and augmentation
-- **Model Training**: CNN-based classification model with optimization techniques
-- **Model Evaluation**: Comprehensive metrics and visualization
-- **API Development**: RESTful API for predictions
-- **Web UI**: Interactive dashboard for predictions, retraining, and monitoring
-- **Cloud Deployment**: Scalable deployment with Docker containers
-- **Load Testing**: Performance testing with Locust
-
-## Features
-
-- **Real-time Prediction**: Upload single images for instant glaucoma detection
-- **Bulk Upload**: Upload multiple images for batch processing
-- **Model Retraining**: Trigger retraining with new data
-- **Data Visualization**: Interactive charts showing model performance and data insights
-- **Performance Monitoring**: Real-time metrics and uptime monitoring
-- **Scalable Architecture**: Docker-based deployment with load balancing
-
-## Tech Stack
-
-- **Backend**: Python, FastAPI, TensorFlow/Keras
-- **Frontend**: HTML, CSS, JavaScript, Chart.js
-- **Database**: SQLite (for simplicity, can be upgraded to PostgreSQL)
-- **Load Testing**: Locust
-- **Cloud Platform**: AWS/GCP/Azure ready
-
-## Setup Instructions
-
-### Prerequisites
-
-- Python 3.8+
-- Git
-
-### Local Development Setup
-
-1. **Clone the repository**
-   ```bash
-   git clone <repository-url>
-   cd ml
-   ```
-
-2. **Install Python dependencies**
-   ```bash
-   pip install -r requirements.txt
-   ```
-
-3. **Train the model (optional)**
-   ```bash
-   python src/train_model.py
-   ```
-
-4. **Run the application locally**
-   ```bash
-   python src/app.py
-   ```
-
-5. **Access the application**
-   - Web UI: http://localhost:8000
-   - API Documentation: http://localhost:8000/docs
-
-
-
-### Load Testing
-
-1. **Install Locust**
-   ```bash
-   pip install locust
-   ```
-
-2. **Run load test**
-   ```bash
-   locust -f locustfile.py --host=http://localhost:8000
-   ```
-
-3. **Access Locust UI**: http://localhost:8089
-
-## Project Structure
+## 📁 Project Structure
 
 ```
 ml/
-├── README.md
-├── requirements.txt
-├── locustfile.py
-├── notebook/
-│   └── glaucoma_detection_script.py
-├── src/
-│   ├── app.py
-│   ├── preprocessing.py
-│   ├── model.py
-│   ├── prediction.py
-│   ├── retraining.py
-│   ├── database.py
-│   └── train_model.py
-├── data/
-│   ├── train/
-│   │   ├── glaucoma/
-│   │   └── normal/
-│   └── test/
-│       ├── glaucoma/
-│       └── normal/
-├── models/
-│   └── glaucoma_model.h5
-├── static/
-│   ├── css/
-│   ├── js/
-│   └── uploads/
-└── templates/
-    └── index.html
+├── data/                    # Dataset directory
+│   ├── train/              # Training images
+│   │   ├── normal/         # Normal eye images
+│   │   └── glaucoma/       # Glaucoma eye images
+│   └── test/               # Test images
+│       ├── normal/         # Normal eye images
+│       └── glaucoma/       # Glaucoma eye images
+├── src/                    # Source code
+│   ├── model.py           # CNN model definition
+│   ├── preprocessing.py   # Data preprocessing
+│   ├── prediction.py      # Prediction functions
+│   ├── retraining.py      # Model retraining
+│   ├── app.py             # FastAPI application
+│   └── database.py        # Database operations
+├── UI/                    # User interface
+│   └── streamlit_app.py   # Streamlit web app
+├── notebook/              # Training and analysis
+│   ├── training_script.py # Main training script
+│   └── glaucoma.ipynb     # Jupyter notebook
+├── models/                # Saved models (created after training)
+├── static/                # Visualizations (created after training)
+├── requirements.txt       # Python dependencies
+└── README.md             # This file
 ```
 
-## API Endpoints
+## 🚀 Quick Start
 
-- `GET /` - Main dashboard
-- `POST /api/predict` - Single image prediction
-- `POST /api/bulk-predict` - Multiple image predictions
-- `POST /api/upload-data` - Upload training data
-- `POST /api/retrain` - Trigger model retraining
-- `GET /api/status` - Model status and metrics
-- `GET /api/visualizations` - Data visualizations
+### 1. Installation
 
-## Model Performance
+   ```bash
+# Clone the repository
+   git clone <repository-url>
+   cd ml
 
-The model achieves:
-- **Accuracy**: ~95%
-- **Precision**: ~94%
-- **Recall**: ~96%
-- **F1-Score**: ~95%
+# Install dependencies
+   pip install -r requirements.txt
+   ```
 
-## Load Testing Results
+### 2. Prepare Your Data
 
-- **Single Instance**: 100 RPS with ~50ms latency
-- **Multiple Instances**: 500+ RPS with ~20ms latency
-- **Auto-scaling**: Handles traffic spikes automatically
+Organize your retinal images in the following structure:
+```
+data/
+├── train/
+│   ├── normal/     # Normal eye images (.jpg, .png)
+│   └── glaucoma/   # Glaucoma eye images (.jpg, .png)
+└── test/
+    ├── normal/     # Normal eye images (.jpg, .png)
+    └── glaucoma/   # Glaucoma eye images (.jpg, .png)
+```
 
-## Video Demo
+### 3. Train the Model
 
-[YouTube Demo Link - Coming Soon]
+   ```bash
+# Run the training script
+python notebook/training_script.py
+```
 
-## Contributing
+This will:
+- Load and preprocess your data
+- Train a CNN model
+- Save the model to `models/best_model.h5`
+- Generate visualizations in `static/`
+
+### 4. Use the Web Interface
+
+   ```bash
+# Launch the Streamlit app
+streamlit run UI/streamlit_app.py
+```
+
+### 5. Use the API
+
+```bash
+# Launch the FastAPI server
+   python src/app.py
+   ```
+
+### 6. Load Testing
+
+   ```bash
+# Install Locust
+   pip install locust
+
+# Run load testing
+   locust -f locustfile.py --host=http://localhost:8000
+
+# Open browser to http://localhost:8089 for Locust web interface
+```
+
+## 🎯 Features
+
+### 🔍 Single Image Prediction
+- Upload individual retinal images
+- Get instant predictions with confidence scores
+- Visual confidence gauge
+- Color-coded results
+
+### 📊 Batch Processing
+- Upload multiple images at once
+- Batch analysis with progress tracking
+- Download results as CSV
+- Summary statistics and visualizations
+
+### 📈 Dataset Analysis
+- View training and test data distribution
+- Class balance analysis
+- Interactive charts and statistics
+
+### 🤖 Model Training
+- Train new models from scratch
+- Retrain existing models
+- View training history and metrics
+- Model performance evaluation
+
+### 📋 Data Management
+- Upload new training images
+- Organize data by class
+- Add to existing dataset
+
+## 🛠️ API Endpoints
+
+### FastAPI Endpoints
+
+- `GET /status` - System status and model information
+- `POST /predict` - Single image prediction
+- `POST /predict_batch` - Batch image prediction
+- `POST /upload` - Upload new training data
+- `POST /retrain` - Retrain the model
+- `GET /dataset_info` - Dataset statistics
+
+### Example API Usage
+
+```python
+import requests
+
+# Single prediction
+with open('image.jpg', 'rb') as f:
+    response = requests.post('http://localhost:8000/predict', files={'file': f})
+    result = response.json()
+    print(f"Prediction: {result['predicted_label']}")
+    print(f"Confidence: {result['confidence']}")
+```
+
+## 📊 Model Architecture
+
+The system uses a CNN with the following architecture:
+- **Input**: 224x224x3 RGB images
+- **Convolutional Layers**: 4 blocks with batch normalization
+- **Pooling**: MaxPooling2D after each conv block
+- **Dense Layers**: 256 → 128 → 2 (output classes)
+- **Dropout**: 0.5 and 0.3 for regularization
+- **Activation**: ReLU for hidden layers, Softmax for output
+
+## 📈 Performance Metrics
+
+The model is evaluated using:
+- **Accuracy**: Overall classification accuracy
+- **Precision**: True positives / (True positives + False positives)
+- **Recall**: True positives / (True positives + False negatives)
+- **F1-Score**: Harmonic mean of precision and recall
+- **AUC**: Area under the ROC curve
+
+## 🔧 Configuration
+
+### Model Settings
+- **Image Size**: 224x224 pixels
+- **Batch Size**: 32
+- **Epochs**: 20 (with early stopping)
+- **Validation Split**: 20%
+
+### Data Augmentation
+- Rotation: ±20 degrees
+- Width/Height shift: ±20%
+- Horizontal flip: Enabled
+- Zoom: ±20%
+
+## 🐛 Troubleshooting
+
+### Common Issues
+
+1. **Model not found**
+   - Ensure you've run the training script first
+   - Check that `models/best_model.h5` exists
+
+2. **Import errors**
+   - Install all dependencies: `pip install -r requirements.txt`
+   - Check Python path and module imports
+
+3. **Memory issues**
+   - Reduce batch size in training
+   - Use smaller image size
+   - Close other applications
+
+4. **CUDA/GPU issues**
+   - Install tensorflow-gpu for GPU support
+   - Check CUDA compatibility
+
+## 🤝 Contributing
 
 1. Fork the repository
 2. Create a feature branch
-3. Commit your changes
-4. Push to the branch
-5. Create a Pull Request
+3. Make your changes
+4. Add tests if applicable
+5. Submit a pull request
 
-## License
+## 📄 License
 
-This project is licensed under the MIT License.
+This project is licensed under the MIT License - see the LICENSE file for details.
+
+## 🙏 Acknowledgments
+
+- Medical imaging community for datasets
+- TensorFlow and Keras teams
+- Streamlit and FastAPI developers
+
+## 📞 Support
+
+For questions or issues:
+- Create an issue on GitHub
+- Check the troubleshooting section
+- Review the documentation
+
+---
+
+**⚠️ Medical Disclaimer**: This system is for educational and research purposes only. It should not be used for actual medical diagnosis without proper validation and clinical approval. 

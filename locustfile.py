@@ -1,269 +1,215 @@
+"""
+Locust Load Testing for Glaucoma Detection API
+==============================================
+
+This file simulates flood requests to test the API performance.
+Run with: locust -f locustfile.py --host=http://localhost:8000
+"""
+
 import time
 import random
-import base64
-import io
 from locust import HttpUser, task, between
-from PIL import Image
-import numpy as np
-
-def create_dummy_image(width=224, height=224):
-    """Create a dummy image for testing"""
-    # Create a random image
-    img_array = np.random.randint(0, 255, (height, width, 3), dtype=np.uint8)
-    img = Image.fromarray(img_array)
-    
-    # Convert to base64
-    buffer = io.BytesIO()
-    img.save(buffer, format='PNG')
-    img_str = base64.b64encode(buffer.getvalue()).decode()
-    
-    return f"data:image/png;base64,{img_str}"
+import os
+import base64
 
 class GlaucomaDetectionUser(HttpUser):
-    """Regular user for glaucoma detection"""
-    wait_time = between(1, 3)
+    """Simulates users making requests to the glaucoma detection API."""
+    
+    wait_time = between(1, 3)  # Wait 1-3 seconds between requests
     
     def on_start(self):
-        """Called when user starts"""
-        print(f"User {self.user_id} started")
+        """Initialize test data on startup."""
+        # Create test image data (base64 encoded small image)
+        self.test_image_data = self.create_test_image()
+    
+    def create_test_image(self):
+        """Create a simple test image for load testing."""
+        # Create a minimal test image (1x1 pixel PNG)
+        png_header = b'\x89PNG\r\n\x1a\n'
+        png_data = b'\x00\x00\x00\rIHDR\x00\x00\x00\x01\x00\x00\x00\x01\x08\x02\x00\x00\x00\x90wS\xde\x00\x00\x00\tpHYs\x00\x00\x0b\x13\x00\x00\x0b\x13\x01\x00\x9a\x9c\x18\x00\x00\x00\x07tIME\x07\xe5\x0c\x1f\x0e\x1d\x0c\xc8\xc8\xc8\xc8\x00\x00\x00\x0cIDATx\x9cc```\x00\x00\x00\x04\x00\x01\xf6\x178\xea\x00\x00\x00\x00IEND\xaeB`\x82'
+        return base64.b64encode(png_header + png_data).decode()
     
     @task(3)
-    def health_check(self):
-        """Health check endpoint"""
-        self.client.get("/api/health")
-    
-    @task(2)
-    def get_status(self):
-        """Get system status"""
-        self.client.get("/api/status")
-    
-    @task(5)
-    def single_prediction(self):
-        """Single image prediction"""
-        # Create dummy image
-        image_data = create_dummy_image()
+    def test_single_prediction(self):
+        """Test single image prediction endpoint."""
+        try:
+            # Create a test image file
+            test_image = base64.b64decode(self.test_image_data)
         
         # Make prediction request
-        response = self.client.post(
-            "/api/predict",
-            json={
-                "image_data": image_data,
-                "image_name": f"test_image_{random.randint(1000, 9999)}"
-            },
-            headers={"Content-Type": "application/json"}
-        )
-        
-        # Validate response
+            with self.client.post(
+                "/predict",
+                files={"file": ("test_image.png", test_image, "image/png")},
+                catch_response=True
+            ) as response:
         if response.status_code == 200:
             result = response.json()
-            if not result.get("success"):
-                print(f"Prediction failed: {result}")
+                    if "predicted_label" in result and "confidence" in result:
+                        response.success()
+                    else:
+                        response.failure("Invalid response format")
+                else:
+                    response.failure(f"HTTP {response.status_code}")
+                    
+        except Exception as e:
+            response.failure(f"Request failed: {str(e)}")
     
-    @task(2)
-    def bulk_prediction(self):
-        """Bulk image prediction"""
-        # Create multiple dummy images
-        images = [create_dummy_image() for _ in range(random.randint(2, 5))]
-        image_names = [f"bulk_test_{i}_{random.randint(1000, 9999)}" for i in range(len(images))]
-        
-        # Make bulk prediction request
-        response = self.client.post(
-            "/api/bulk-predict",
-            json={
-                "images": images,
-                "image_names": image_names
-            },
-            headers={"Content-Type": "application/json"}
-        )
-        
-        # Validate response
+    @task(1)
+    def test_batch_prediction(self):
+        """Test batch prediction endpoint."""
+        try:
+            # Create multiple test images
+            test_images = []
+            for i in range(3):
+                test_image = base64.b64decode(self.test_image_data)
+                test_images.append(("files", ("test_image_{}.png".format(i), test_image, "image/png")))
+            
+            # Make batch prediction request
+            with self.client.post(
+                "/predict_batch",
+                files=test_images,
+                catch_response=True
+            ) as response:
+                if response.status_code == 200:
+                    result = response.json()
+                    if "results" in result and len(result["results"]) > 0:
+                        response.success()
+                    else:
+                        response.failure("Invalid batch response format")
+                else:
+                    response.failure(f"HTTP {response.status_code}")
+                    
+        except Exception as e:
+            response.failure(f"Batch request failed: {str(e)}")
+    
+    @task(1)
+    def test_status_endpoint(self):
+        """Test status endpoint."""
+        with self.client.get("/status", catch_response=True) as response:
+            if response.status_code == 200:
+                result = response.json()
+                if "status" in result and "model_loaded" in result:
+                    response.success()
+                else:
+                    response.failure("Invalid status response format")
+            else:
+                response.failure(f"HTTP {response.status_code}")
+    
+    @task(1)
+    def test_dataset_info(self):
+        """Test dataset info endpoint."""
+        with self.client.get("/dataset_info", catch_response=True) as response:
         if response.status_code == 200:
             result = response.json()
-            if not result.get("success"):
-                print(f"Bulk prediction failed: {result}")
+                if "train_data" in result and "test_data" in result:
+                    response.success()
+                else:
+                    response.failure("Invalid dataset info response format")
+            else:
+                response.failure(f"HTTP {response.status_code}")
     
     @task(1)
-    def get_prediction_history(self):
-        """Get prediction history"""
-        self.client.get("/api/prediction-history?limit=10")
-    
-    @task(1)
-    def get_visualizations(self):
-        """Get data visualizations"""
-        self.client.get("/api/visualizations")
+    def test_upload_data(self):
+        """Test data upload endpoint."""
+        try:
+            # Create test image for upload
+            test_image = base64.b64decode(self.test_image_data)
+            
+            # Make upload request
+            with self.client.post(
+                "/upload",
+                files={"file": ("upload_test.png", test_image, "image/png")},
+                data={"label": "normal"},
+                catch_response=True
+            ) as response:
+        if response.status_code == 200:
+            result = response.json()
+                    if "message" in result:
+                        response.success()
+                    else:
+                        response.failure("Invalid upload response format")
+                else:
+                    response.failure(f"HTTP {response.status_code}")
+                    
+        except Exception as e:
+            response.failure(f"Upload request failed: {str(e)}")
 
-class AdminUser(HttpUser):
-    """Admin user for retraining and management"""
-    wait_time = between(5, 10)
-    weight = 1  # Less frequent than regular users
+class GlaucomaDetectionLoadTest(HttpUser):
+    """Heavy load testing for stress testing."""
+    
+    wait_time = between(0.1, 0.5)  # Faster requests for load testing
     
     def on_start(self):
-        """Called when admin user starts"""
-        print(f"Admin user {self.user_id} started")
+        """Initialize for load testing."""
+        self.test_image_data = self.create_test_image()
     
-    @task(2)
-    def check_training_status(self):
-        """Check training status"""
-        self.client.get("/api/status")
+    def create_test_image(self):
+        """Create test image data."""
+        png_header = b'\x89PNG\r\n\x1a\n'
+        png_data = b'\x00\x00\x00\rIHDR\x00\x00\x00\x01\x00\x00\x00\x01\x08\x02\x00\x00\x00\x90wS\xde\x00\x00\x00\tpHYs\x00\x00\x0b\x13\x00\x00\x0b\x13\x01\x00\x9a\x9c\x18\x00\x00\x00\x07tIME\x07\xe5\x0c\x1f\x0e\x1d\x0c\xc8\xc8\xc8\xc8\x00\x00\x00\x0cIDATx\x9cc```\x00\x00\x00\x04\x00\x01\xf6\x178\xea\x00\x00\x00\x00IEND\xaeB`\x82'
+        return base64.b64encode(png_header + png_data).decode()
     
-    @task(1)
-    def get_training_history(self):
-        """Get training history"""
-        self.client.get("/api/training-history")
-    
-    @task(1)
-    def trigger_retraining(self):
-        """Trigger model retraining"""
-        response = self.client.post(
-            "/api/retrain",
-            json={
-                "epochs": random.randint(10, 30),
-                "batch_size": random.choice([16, 32, 64]),
-                "learning_rate": random.uniform(0.0001, 0.01),
-                "model_type": random.choice(["custom", "vgg16"])
-            },
-            headers={"Content-Type": "application/json"}
-        )
-        
+    @task(10)
+    def stress_test_prediction(self):
+        """Stress test the prediction endpoint."""
+        try:
+            test_image = base64.b64decode(self.test_image_data)
+            
+            with self.client.post(
+                "/predict",
+                files={"file": ("stress_test.png", test_image, "image/png")},
+                catch_response=True
+            ) as response:
         if response.status_code == 200:
-            result = response.json()
-            print(f"Retraining triggered: {result}")
-    
-    @task(1)
-    def upload_training_data(self):
-        """Upload training data (simulated)"""
-        # Create dummy image files
-        image_data = create_dummy_image()
-        
-        # Simulate file upload
-        files = {
-            'files': ('test_image.png', image_data, 'image/png')
-        }
-        data = {
-            'class_labels': ['glaucoma']  # or 'normal'
-        }
-        
-        # Note: This is a simplified version. Real file upload would use multipart/form-data
-        response = self.client.post("/api/upload-data", files=files, data=data)
-        
-        if response.status_code == 200:
-            result = response.json()
-            print(f"Data upload: {result}")
+                    response.success()
+                else:
+                    response.failure(f"HTTP {response.status_code}")
+                    
+        except Exception as e:
+            response.failure(f"Stress test failed: {str(e)}")
 
-class SystemMonitor(HttpUser):
-    """System monitoring user"""
-    wait_time = between(10, 30)
-    weight = 1
-    
-    def on_start(self):
-        """Called when monitor starts"""
-        print(f"System monitor {self.user_id} started")
-    
-    @task(3)
-    def health_check(self):
-        """Frequent health checks"""
-        response = self.client.get("/api/health")
-        if response.status_code != 200:
-            print(f"Health check failed: {response.status_code}")
-    
-    @task(2)
-    def get_system_status(self):
-        """Get detailed system status"""
-        response = self.client.get("/api/status")
-        if response.status_code == 200:
-            result = response.json()
-            # Log system metrics
-            metrics = result.get("system_metrics", {})
-            print(f"System metrics: CPU={metrics.get('cpu_usage', 0)}%, "
-                  f"Memory={metrics.get('memory_usage', 0)}%, "
-                  f"Requests/min={metrics.get('requests_per_minute', 0)}")
-    
-    @task(1)
-    def stress_test(self):
-        """Stress test with multiple concurrent requests"""
-        # Make multiple requests simultaneously
-        responses = []
-        for _ in range(5):
-            response = self.client.get("/api/health")
-            responses.append(response)
-        
-        # Check if all requests succeeded
-        failed_requests = [r for r in responses if r.status_code != 200]
-        if failed_requests:
-            print(f"Stress test failed: {len(failed_requests)} requests failed")
-
-# Custom events for monitoring
-def on_request_success(request_type, name, response_time, response_length):
-    """Called when a request succeeds"""
-    print(f"SUCCESS: {request_type} {name} - {response_time}ms")
-
-def on_request_failure(request_type, name, response_time, exception):
-    """Called when a request fails"""
-    print(f"FAILURE: {request_type} {name} - {response_time}ms - {exception}")
-
-# Load test configuration
-class LoadTestConfig:
-    """Configuration for load testing"""
+# Configuration for different test scenarios
+class Config:
+    """Configuration for different load test scenarios."""
     
     @staticmethod
-    def get_test_scenarios():
-        """Get different test scenarios"""
+    def get_scenarios():
+        """Get different test scenarios."""
         return {
-            "light_load": {
+            "normal_load": {
                 "users": 10,
                 "spawn_rate": 2,
-                "duration": "2m"
-            },
-            "medium_load": {
-                "users": 50,
-                "spawn_rate": 5,
                 "duration": "5m"
             },
-            "heavy_load": {
-                "users": 100,
-                "spawn_rate": 10,
+            "high_load": {
+                "users": 50,
+                "spawn_rate": 5,
                 "duration": "10m"
             },
             "stress_test": {
-                "users": 200,
-                "spawn_rate": 20,
+                "users": 100,
+                "spawn_rate": 10,
                 "duration": "15m"
             }
-        }
-    
-    @staticmethod
-    def get_expected_performance():
-        """Expected performance metrics"""
-        return {
-            "response_time_p95": 1000,  # 95th percentile should be under 1 second
-            "response_time_p99": 2000,  # 99th percentile should be under 2 seconds
-            "error_rate": 0.01,  # Error rate should be under 1%
-            "requests_per_second": 50   # Should handle at least 50 RPS
         }
 
 # Usage instructions
 """
 To run load tests:
 
-1. Start the FastAPI application:
+1. Start the API server:
    python src/app.py
 
-2. Run Locust:
-   locust -f locustfile.py --host=http://localhost:8000
+2. Run normal load test:
+   locust -f locustfile.py --host=http://localhost:8000 --users=10 --spawn-rate=2 --run-time=5m
 
-3. Open browser and go to http://localhost:8089
+3. Run stress test:
+   locust -f locustfile.py --host=http://localhost:8000 --users=100 --spawn-rate=10 --run-time=15m
 
-4. Configure test parameters:
-   - Number of users: 50
-   - Spawn rate: 5 users/second
-   - Host: http://localhost:8000
+4. Open browser to http://localhost:8089 for Locust web interface
 
-5. Start the test and monitor results
-
-Expected results:
-- Response time should be under 1 second for 95% of requests
-- Error rate should be under 1%
-- System should handle at least 50 requests per second
-- Memory usage should remain stable
-- CPU usage should scale with load
+Expected Results:
+- Response times under 2 seconds for normal load
+- Response times under 5 seconds for high load
+- Error rate under 5% for all scenarios
 """ 
