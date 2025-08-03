@@ -1,28 +1,41 @@
+"""
+GLAUCOMA DETECTION - STREAMLIT WEB APP
+======================================
+
+A user-friendly web interface for glaucoma detection using deep learning.
+
+Features:
+- Single image prediction
+- Batch image processing
+- Dataset analysis
+- Model training interface
+- Data upload functionality
+
+Usage:
+    streamlit run UI/streamlit_app.py
+"""
+
 import streamlit as st
-import os
+import requests
+import json
+import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
 from PIL import Image
 import tempfile
-import json
-import requests
 from datetime import datetime
 
-# Import our custom modules
-import sys
-sys.path.append(os.path.dirname(os.path.abspath(__file__)) + "/..")
-from src.prediction import load_trained_model, predict_image, predict_batch
-from src.preprocessing import get_dataset_info
-from src.model import build_model, get_data_generators, calculate_class_weights
+# API Configuration
+API_URL = "https://ml-et3r.onrender.com"
 
 # Page configuration
 st.set_page_config(
     page_title="Glaucoma Detection System",
     page_icon="👁️",
     layout="wide",
-    initial_sidebar_state="expanded"
+    initial_sidebar_state="collapsed"
 )
 
 # Custom CSS for better styling
@@ -73,6 +86,14 @@ st.markdown("""
         text-align: center;
         margin: 1rem 0;
     }
+    .api-status-online {
+        color: #28a745;
+        font-weight: bold;
+    }
+    .api-status-offline {
+        color: #dc3545;
+        font-weight: bold;
+    }
 </style>
 """, unsafe_allow_html=True)
 
@@ -81,44 +102,66 @@ if 'model' not in st.session_state:
     st.session_state.model = None
 if 'model_loaded' not in st.session_state:
     st.session_state.model_loaded = False
+if 'api_url' not in st.session_state:
+    st.session_state.api_url = "https://ml-et3r.onrender.com"
 
-def load_model():
-    """Load the trained model."""
+def check_api_status(api_url):
+    """Check if API is online."""
     try:
-        model_path = "../models/best_model.h5"
-        if os.path.exists(model_path):
-            st.session_state.model = load_trained_model(model_path)
-            st.session_state.model_loaded = True
-            return True
-        else:
-            st.error("Model file not found. Please train the model first.")
-            return False
-    except Exception as e:
-        st.error(f"Error loading model: {str(e)}")
-        return False
+        response = requests.get(f"{api_url}/status", timeout=5)
+        return response.status_code == 200, response.json() if response.status_code == 200 else None
+    except:
+        return False, None
 
 def main():
     # Header
     st.markdown('<h1 class="main-header">👁️ Glaucoma Detection System</h1>', unsafe_allow_html=True)
     
-    # Sidebar
-    st.sidebar.title("🎯 Navigation")
-    page = st.sidebar.selectbox(
-        "Choose a page",
-        ["🏠 Home", "🔍 Single Prediction", "📊 Batch Prediction", "📈 Dataset Analysis", "🤖 Model Training", "📋 Upload Data"]
-    )
-    
-    # Load model if not loaded
-    if not st.session_state.model_loaded:
-        if st.sidebar.button("🔄 Load Model", help="Load the trained glaucoma detection model"):
-            with st.spinner("Loading model..."):
-                load_model()
-    
-    # Display model status
-    if st.session_state.model_loaded:
-        st.sidebar.success("✅ Model Loaded")
-    else:
-        st.sidebar.warning("⚠️ Model Not Loaded")
+    # Sidebar: Show API status
+    with st.sidebar:
+        st.header("🌐 API Configuration")
+        
+        # API URL selection
+        api_url = st.selectbox(
+            "Select API Endpoint",
+            [
+                "https://ml-et3r.onrender.com",
+                "http://localhost:8000"
+            ],
+            index=0 if st.session_state.api_url == "https://ml-et3r.onrender.com" else 1
+        )
+        st.session_state.api_url = api_url
+        
+        st.markdown("---")
+        
+        # Check API status
+        st.header("📊 API Status")
+        is_online, status_data = check_api_status(api_url)
+        
+        if is_online:
+            st.markdown('<p class="api-status-online">🟢 API Online</p>', unsafe_allow_html=True)
+            st.write(f"**Uptime:** {status_data['uptime_seconds']} seconds")
+            st.write(f"**Status:** {status_data['status']}")
+            st.write(f"**Model Loaded:** {'✅ Yes' if status_data.get('model_loaded', False) else '❌ No'}")
+        else:
+            st.markdown('<p class="api-status-offline">🔴 API Offline</p>', unsafe_allow_html=True)
+            st.error("Could not connect to backend.")
+            
+            if api_url == "https://ml-et3r.onrender.com":
+                st.info("💡 **Tip:** Try switching to localhost:8000 if you have the API running locally")
+                st.markdown("**To start local API:**")
+                st.code("python src/app.py")
+            else:
+                st.info("💡 **Tip:** Make sure your local API is running on port 8000")
+        
+        st.markdown("---")
+        
+        # Navigation
+        st.markdown("## 🎯 Navigation")
+        page = st.selectbox(
+            "Choose a page",
+            ["🏠 Home", "🔍 Single Prediction", "📊 Batch Prediction", "📈 Dataset Analysis", "🤖 Model Training", "📋 Upload Data"]
+        )
     
     # Page routing
     if page == "🏠 Home":
@@ -146,47 +189,46 @@ def show_home_page():
     # System status
     st.markdown("### 📊 System Status")
     
-    # Try to get API status
-    try:
-        response = requests.get("https://ml-et3r.onrender.com/docs#/default/get_status_status_get", timeout=5)
-        if response.status_code == 200:
-            status_data = response.json()
-            col1, col2, col3 = st.columns(3)
-            with col1:
-                st.metric("API Status", "🟢 Online")
-            with col2:
-                st.metric("Uptime", f"{status_data.get('uptime_seconds', 0)}s")
-            with col3:
-                st.metric("Model Status", "✅ Loaded" if status_data.get('model_loaded', False) else "⚠️ Not Loaded")
-            
-            # Get metrics if available
-            try:
-                metrics_response = requests.get("https://ml-et3r.onrender.com/docs#/default/get_metrics_metrics_get", timeout=5)
-                if metrics_response.status_code == 200:
-                    metrics = metrics_response.json()
-                    if metrics:
-                        st.markdown("### 📈 System Metrics")
-                        col1, col2, col3, col4 = st.columns(4)
-                        with col1:
-                            st.metric("Avg Response Time", f"{metrics.get('avg_response_time', 0):.3f}s")
-                        with col2:
-                            st.metric("Total Requests", metrics.get('total_requests', 0))
-                        with col3:
-                            st.metric("Error Rate", f"{metrics.get('error_rate', 0):.1f}%")
-                        with col4:
-                            st.metric("Success Rate", f"{metrics.get('success_rate', 0):.1f}%")
-            except:
-                pass
-                
-        else:
-            st.warning("⚠️ API is not responding")
-    except:
-        st.info("ℹ️ API not running. Start it with: `python src/app.py`")
+    # Check API status
+    is_online, status_data = check_api_status(st.session_state.api_url)
+    
+    if is_online:
+        col1, col2, col3 = st.columns(3)
+        with col1:
+            st.metric("API Status", "🟢 Online")
+        with col2:
+            st.metric("Uptime", f"{status_data.get('uptime_seconds', 0)}s")
+        with col3:
+            st.metric("Model Status", "✅ Loaded" if status_data.get('model_loaded', False) else "⚠️ Not Loaded")
+        
+        # Get metrics if available
+        try:
+            metrics_response = requests.get(f"{st.session_state.api_url}/metrics", timeout=5)
+            if metrics_response.status_code == 200:
+                metrics = metrics_response.json()
+                if metrics:
+                    st.markdown("### 📈 System Metrics")
+                    col1, col2, col3, col4 = st.columns(4)
+                    with col1:
+                        st.metric("Avg Response Time", f"{metrics.get('avg_response_time', 0):.3f}s")
+                    with col2:
+                        st.metric("Total Requests", metrics.get('total_requests', 0))
+                    with col3:
+                        st.metric("Error Rate", f"{metrics.get('error_rate', 0):.1f}%")
+                    with col4:
+                        st.metric("Success Rate", f"{metrics.get('success_rate', 0):.1f}%")
+        except:
+            pass
+    else:
+        st.warning("⚠️ API is not responding")
+        st.info(f"ℹ️ Current API URL: {st.session_state.api_url}")
+        if st.session_state.api_url == "https://ml-et3r.onrender.com":
+            st.info("💡 **To use local API:** Change the API endpoint in the sidebar to 'http://localhost:8000' and start the API with: `python src/app.py`")
     
     # Quick start guide
     st.markdown("### 🚀 Quick Start Guide")
     st.markdown("""
-    1. **🔄 Load the Model**: Click 'Load Model' in the sidebar if not already loaded
+    1. **🌐 Connect to API**: Make sure the API is running (check sidebar status)
     2. **📁 Upload an Image**: Go to 'Single Prediction' and upload a retinal image
     3. **📊 View Results**: Get instant prediction with confidence score
     4. **📈 Analyze Batch**: Use 'Batch Prediction' for multiple images
@@ -197,9 +239,9 @@ def show_home_page():
     col1, col2, col3 = st.columns(3)
     
     with col1:
-        st.metric("Model Status", "✅ Ready" if st.session_state.model_loaded else "⚠️ Not Loaded")
+        st.metric("API Status", "🟢 Online" if is_online else "🔴 Offline")
     with col2:
-        st.metric("API Status", "🟢 Online")
+        st.metric("API URL", st.session_state.api_url.split("//")[-1])
     with col3:
         st.metric("Version", "1.0.0")
 
@@ -207,8 +249,10 @@ def show_single_prediction():
     """Display single image prediction page."""
     st.markdown("## 🔍 Single Image Prediction")
     
-    if not st.session_state.model_loaded:
-        st.warning("⚠️ Please load the model first from the sidebar.")
+    # Check API status first
+    is_online, _ = check_api_status(st.session_state.api_url)
+    if not is_online:
+        st.error("❌ API is not available. Please check the API status in the sidebar.")
         return
     
     # File upload section
@@ -221,7 +265,7 @@ def show_single_prediction():
         help="Upload a retinal image for glaucoma detection"
     )
     
-    if uploaded_file is not None:
+    if uploaded_file:
         # Display uploaded image
         col1, col2 = st.columns(2)
         
@@ -239,251 +283,177 @@ def show_single_prediction():
         with col2:
             st.markdown("### 🔍 Prediction Results")
             
-            # Save uploaded file temporarily
-            with tempfile.NamedTemporaryFile(delete=False, suffix='.jpg') as tmp_file:
-                image.save(tmp_file.name)
-                tmp_path = tmp_file.name
-            
+            # Make prediction using API
             try:
-                # Make prediction
-                class_labels = {0: 'Normal', 1: 'Glaucoma'}
-                label, confidence = predict_image(st.session_state.model, tmp_path, class_labels)
+                response = requests.post(
+                    f"{st.session_state.api_url}/predict",
+                    files={"file": (uploaded_file.name, uploaded_file.getvalue())},
+                    timeout=30
+                )
+                result = response.json()
                 
-                # Display results
-                if label == 'Normal':
-                    st.markdown(f"""
-                    <div class="prediction-result normal-result">
-                        <h3>✅ Normal - No Glaucoma Detected</h3>
-                        <p><strong>Confidence:</strong> {confidence:.2%}</p>
-                        <p>No signs of glaucoma detected in this image. The optic nerve appears healthy.</p>
-                    </div>
-                    """, unsafe_allow_html=True)
+                if "error" in result:
+                    st.error(result["error"])
                 else:
-                    st.markdown(f"""
-                    <div class="prediction-result glaucoma-result">
-                        <h3>⚠️ Glaucoma Detected</h3>
-                        <p><strong>Confidence:</strong> {confidence:.2%}</p>
-                        <p>Signs of glaucoma detected. Please consult an ophthalmologist for further evaluation.</p>
-                    </div>
-                    """, unsafe_allow_html=True)
-                
-                # Confidence gauge
-                st.markdown("#### 📊 Confidence Level")
-                fig = go.Figure(go.Indicator(
-                    mode="gauge+number+delta",
-                    value=confidence * 100,
-                    domain={'x': [0, 1], 'y': [0, 1]},
-                    title={'text': "Prediction Confidence"},
-                    delta={'reference': 50},
-                    gauge={
-                        'axis': {'range': [None, 100]},
-                        'bar': {'color': "darkblue"},
-                        'steps': [
-                            {'range': [0, 50], 'color': "lightgray"},
-                            {'range': [50, 80], 'color': "yellow"},
-                            {'range': [80, 100], 'color': "green"}
-                        ],
-                        'threshold': {
-                            'line': {'color': "red", 'width': 4},
-                            'thickness': 0.75,
-                            'value': 90
+                    label = result.get('predicted_label', 'Unknown')
+                    confidence = result.get('confidence', 0.0)
+                    
+                    # Display results
+                    if label == 'Normal':
+                        st.markdown(f"""
+                        <div class="prediction-result normal-result">
+                            <h3>✅ Normal - No Glaucoma Detected</h3>
+                            <p><strong>Confidence:</strong> {confidence:.2%}</p>
+                            <p>No signs of glaucoma detected in this image. The optic nerve appears healthy.</p>
+                        </div>
+                        """, unsafe_allow_html=True)
+                    else:
+                        st.markdown(f"""
+                        <div class="prediction-result glaucoma-result">
+                            <h3>⚠️ Glaucoma Detected</h3>
+                            <p><strong>Confidence:</strong> {confidence:.2%}</p>
+                            <p>Signs of glaucoma detected. Please consult an ophthalmologist for further evaluation.</p>
+                        </div>
+                        """, unsafe_allow_html=True)
+                    
+                    # Confidence gauge
+                    st.markdown("#### 📊 Confidence Level")
+                    fig = go.Figure(go.Indicator(
+                        mode="gauge+number+delta",
+                        value=confidence * 100,
+                        domain={'x': [0, 1], 'y': [0, 1]},
+                        title={'text': "Prediction Confidence"},
+                        delta={'reference': 50},
+                        gauge={
+                            'axis': {'range': [None, 100]},
+                            'bar': {'color': "darkblue"},
+                            'steps': [
+                                {'range': [0, 50], 'color': "lightgray"},
+                                {'range': [50, 80], 'color': "yellow"},
+                                {'range': [80, 100], 'color': "green"}
+                            ],
+                            'threshold': {
+                                'line': {'color': "red", 'width': 4},
+                                'thickness': 0.75,
+                                'value': 90
+                            }
                         }
-                    }
-                ))
-                st.plotly_chart(fig, use_container_width=True)
-                
+                    ))
+                    st.plotly_chart(fig, use_container_width=True)
+                    
             except Exception as e:
-                st.error(f"❌ Error during prediction: {str(e)}")
-            finally:
-                # Clean up temporary file
-                if os.path.exists(tmp_path):
-                    os.unlink(tmp_path)
+                st.error(f"Prediction failed: {e}")
 
 def show_batch_prediction():
     """Display batch prediction page."""
     st.markdown("## 📊 Batch Prediction")
     
-    if not st.session_state.model_loaded:
-        st.warning("⚠️ Please load the model first from the sidebar.")
+    # Check API status first
+    is_online, _ = check_api_status(st.session_state.api_url)
+    if not is_online:
+        st.error("❌ API is not available. Please check the API status in the sidebar.")
         return
     
     # File upload section
     st.markdown("### 📁 Upload Multiple Images")
     st.markdown("Upload multiple retinal images for batch analysis.")
     
-    uploaded_files = st.file_uploader(
-        "Choose multiple retinal image files",
+    batch_files = st.file_uploader(
+        "Upload Multiple Retinal Images",
         type=['png', 'jpg', 'jpeg'],
         accept_multiple_files=True,
-        help="Upload multiple retinal images for batch analysis"
+        key="batch"
     )
     
-    if uploaded_files:
-        st.markdown(f"### 📋 Uploaded {len(uploaded_files)} Images")
-        
-        # Show uploaded files
-        file_names = [f.name for f in uploaded_files]
-        st.write("**Uploaded files:**", ", ".join(file_names))
+    if batch_files:
+        st.write(f"Uploaded {len(batch_files)} images")
         
         # Process images
-        if st.button("🚀 Analyze All Images", help="Start batch analysis"):
-            with st.spinner("🔄 Processing images..."):
-                results = []
-                temp_paths = []
-                
+        if st.button("🚀 Process Batch", key="batch_predict_btn"):
+            with st.spinner("Processing batch predictions..."):
                 try:
-                    # Progress bar
-                    progress_bar = st.progress(0)
-                    status_text = st.empty()
-                    
-                    for i, uploaded_file in enumerate(uploaded_files):
-                        status_text.text(f"Processing {uploaded_file.name}...")
-                        
-                        # Save uploaded file temporarily
-                        with tempfile.NamedTemporaryFile(delete=False, suffix='.jpg') as tmp_file:
-                            image = Image.open(uploaded_file)
-                            image.save(tmp_file.name)
-                            temp_paths.append(tmp_file.name)
-                        
-                        # Make prediction
-                        class_labels = {0: 'Normal', 1: 'Glaucoma'}
-                        label, confidence = predict_image(st.session_state.model, temp_paths[-1], class_labels)
-                        
-                        results.append({
-                            'filename': uploaded_file.name,
-                            'prediction': label,
-                            'confidence': confidence,
-                            'status': '✅ Normal' if label == 'Normal' else '⚠️ Glaucoma'
-                        })
-                        
-                        # Update progress
-                        progress_bar.progress((i + 1) / len(uploaded_files))
-                    
-                    status_text.text("✅ Analysis completed!")
+                    files = [("files", (f.name, f.getvalue())) for f in batch_files]
+                    response = requests.post(f"{st.session_state.api_url}/predict_batch", files=files, timeout=60)
+                    results = response.json()["results"]
                     
                     # Display results
-                    df = pd.DataFrame(results)
+                    for res in results:
+                        if "error" in res:
+                            st.error(f"{res.get('image', 'Unknown')}: {res['error']}")
+                        else:
+                            label = res.get('label', 'Unknown')
+                            confidence = res.get('confidence', 0.0)
+                            st.write(f"{res.get('image', 'Unknown')}: {label} (Confidence: {confidence:.2%})")
                     
                     # Summary statistics
-                    st.markdown("### 📈 Summary Statistics")
-                    col1, col2, col3, col4 = st.columns(4)
-                    with col1:
-                        st.metric("Total Images", len(results))
-                    with col2:
-                        normal_count = len(df[df['prediction'] == 'Normal'])
-                        st.metric("Normal", normal_count)
-                    with col3:
-                        glaucoma_count = len(df[df['prediction'] == 'Glaucoma'])
-                        st.metric("Glaucoma", glaucoma_count)
-                    with col4:
-                        avg_confidence = df['confidence'].mean()
-                        st.metric("Avg Confidence", f"{avg_confidence:.2%}")
-                    
-                    # Results table
-                    st.markdown("### 📊 Detailed Results")
-                    st.dataframe(df, use_container_width=True)
-                    
-                    # Download results
-                    csv = df.to_csv(index=False)
-                    st.download_button(
-                        label="📥 Download Results CSV",
-                        data=csv,
-                        file_name=f"glaucoma_predictions_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv",
-                        mime="text/csv"
-                    )
-                    
-                    # Visualization
-                    st.markdown("### 📊 Prediction Distribution")
-                    fig = px.pie(df, names='prediction', title='Prediction Distribution')
-                    st.plotly_chart(fig, use_container_width=True)
-                    
+                    if results:
+                        df_data = []
+                        for res in results:
+                            if 'label' in res:
+                                df_data.append({
+                                    'filename': res.get('image', 'Unknown'),
+                                    'prediction': res.get('label', 'Unknown'),
+                                    'confidence': res.get('confidence', 0.0)
+                                })
+                        
+                        if df_data:
+                            df = pd.DataFrame(df_data)
+                            st.markdown("### 📈 Summary Statistics")
+                            col1, col2, col3, col4 = st.columns(4)
+                            with col1:
+                                st.metric("Total Images", len(results))
+                            with col2:
+                                normal_count = len(df[df['prediction'] == 'Normal'])
+                                st.metric("Normal", normal_count)
+                            with col3:
+                                glaucoma_count = len(df[df['prediction'] == 'Glaucoma'])
+                                st.metric("Glaucoma", glaucoma_count)
+                            with col4:
+                                avg_confidence = df['confidence'].mean()
+                                st.metric("Avg Confidence", f"{avg_confidence:.2%}")
+                            
+                            # Results table
+                            st.markdown("### 📊 Detailed Results")
+                            st.dataframe(df, use_container_width=True)
+                            
+                            # Visualization
+                            st.markdown("### 📊 Prediction Distribution")
+                            fig = px.pie(df, names='prediction', title='Prediction Distribution')
+                            st.plotly_chart(fig, use_container_width=True)
+                            
                 except Exception as e:
-                    st.error(f"❌ Error during batch processing: {str(e)}")
-                finally:
-                    # Clean up temporary files
-                    for temp_path in temp_paths:
-                        if os.path.exists(temp_path):
-                            os.unlink(temp_path)
+                    st.error(f"Batch prediction failed: {e}")
 
 def show_dataset_analysis():
     """Display dataset analysis page."""
-    st.markdown("## 📊 Dataset Analysis")
+    st.markdown("## 📈 Dataset Analysis")
     
-    st.markdown("### 📈 Dataset Overview")
+    # Dataset Overview
+    st.markdown("### 📊 Dataset Overview")
     
-    # Load dataset summary if available
-    summary_path = "../static/dataset_summary.json"
-    if os.path.exists(summary_path):
-        try:
-            with open(summary_path, 'r') as f:
-                summary = json.load(f)
-            
-            col1, col2, col3 = st.columns(3)
-            with col1:
-                st.metric("Total Images", summary['total_images'])
-            with col2:
-                st.metric("Image Shape", f"{summary['image_shape'][0]}x{summary['image_shape'][1]}")
-            with col3:
-                st.metric("Mean Pixel Value", f"{summary['mean_pixel_value']:.3f}")
-            
-            # Class distribution
-            st.markdown("#### 📊 Class Distribution")
-            class_data = summary['class_distribution']
-            fig = go.Figure(data=[
-                go.Bar(x=list(class_data.keys()), y=list(class_data.values()),
-                      marker_color=['lightblue', 'lightcoral'])
-            ])
-            fig.update_layout(title="Class Distribution", xaxis_title="Classes", yaxis_title="Number of Images")
-            st.plotly_chart(fig, use_container_width=True)
-                
-        except Exception as e:
-            st.error(f"Error loading dataset summary: {str(e)}")
+    col1, col2 = st.columns(2)
+    with col1:
+        st.markdown('<div class="metric-card">', unsafe_allow_html=True)
+        st.markdown('<h4>Training Data</h4>', unsafe_allow_html=True)
+        st.write("**Normal:** 100 images")
+        st.write("**Glaucoma:** 100 images")
+        st.write("**Total:** 200 images")
+        st.markdown('</div>', unsafe_allow_html=True)
     
-    # Display visualizations
-    st.markdown("### 📸 Dataset Visualizations")
+    with col2:
+        st.markdown('<div class="metric-card">', unsafe_allow_html=True)
+        st.markdown('<h4>Test Data</h4>', unsafe_allow_html=True)
+        st.write("**Normal:** 25 images")
+        st.write("**Glaucoma:** 25 images")
+        st.write("**Total:** 50 images")
+        st.markdown('</div>', unsafe_allow_html=True)
     
-    viz_files = [
-        ("Class Distribution", "class_distribution.png"),
-        ("Sample Images", "sample_images.png"),
-        ("Pixel Analysis", "pixel_analysis.png"),
-        ("Image Characteristics", "image_characteristics.png")
-    ]
-    
-    for title, filename in viz_files:
-        file_path = f"../static/{filename}"
-        if os.path.exists(file_path):
-            st.markdown(f"#### {title}")
-            st.image(file_path, use_column_width=True)
-        else:
-            st.info(f"📊 {title} visualization not found. Run the training script to generate it.")
-    
-    # Dataset statistics
-    st.markdown("### 📋 Dataset Statistics")
-    
-    train_path = "/workspaces/ml/data/train"
-    test_path = "/workspaces/ml/data/test"
-    
-    if os.path.exists(train_path):
-        train_stats = {}
-        for class_name in os.listdir(train_path):
-            class_path = os.path.join(train_path, class_name)
-            if os.path.isdir(class_path):
-                train_stats[class_name] = len(os.listdir(class_path))
-        
-        st.markdown("#### Training Data")
-        for class_name, count in train_stats.items():
-            st.write(f"**{class_name}**: {count} images")
-    
-    if os.path.exists(test_path):
-        test_stats = {}
-        for class_name in os.listdir(test_path):
-            class_path = os.path.join(test_path, class_name)
-            if os.path.isdir(class_path):
-                test_stats[class_name] = len(os.listdir(class_path))
-        
-        st.markdown("#### Test Data")
-        for class_name, count in test_stats.items():
-            st.write(f"**{class_name}**: {count} images")
+    # Class distribution chart
+    class_data = {'Normal': 100, 'Glaucoma': 100}
+    fig = go.Figure(data=[go.Bar(x=list(class_data.keys()), y=list(class_data.values()),
+                                marker_color=['lightblue', 'lightcoral'])])
+    fig.update_layout(title="Class Distribution", xaxis_title="Classes", yaxis_title="Number of Images")
+    st.plotly_chart(fig, use_container_width=True)
 
 def show_model_training():
     """Display model training page."""
@@ -539,150 +509,79 @@ def show_model_training():
         if st.button("🔄 Retrain Model"):
             with st.spinner("🔄 Retraining model..."):
                 try:
-                    # Actually trigger retraining
-                    import subprocess
-                    import sys
-                    import os
-                    
-                    # Change to the correct directory
-                    current_dir = os.getcwd()
-                    os.chdir(os.path.dirname(os.path.abspath(__file__)) + "/..")
-                    
-                    # Run retraining script
-                    result = subprocess.run(
-                        [sys.executable, "src/retraining.py"], 
-                        capture_output=True, 
-                        text=True,
-                        timeout=300  # 5 minute timeout
-                    )
-                    
-                    # Change back to original directory
-                    os.chdir(current_dir)
-                    
-                    if result.returncode == 0:
-                        st.success("✅ Retraining completed successfully!")
-                        st.info("Model has been updated with new data.")
-                        
-                        # Reload model
-                        if st.session_state.model_loaded:
-                            st.session_state.model_loaded = False
-                            st.info("Please reload the model from the sidebar.")
-                    else:
-                        st.error(f"❌ Retraining failed: {result.stderr}")
-                        
-                except subprocess.TimeoutExpired:
-                    st.error("❌ Retraining timed out. Please try again.")
+                    response = requests.post(f"{st.session_state.api_url}/retrain", timeout=300)
+                    result = response.json()
+                    st.info(result.get("message", "Retraining triggered."))
                 except Exception as e:
-                    st.error(f"❌ Retraining failed: {str(e)}")
+                    st.error(f"Could not start retraining: {e}")
     
-    # Model evaluation section
-    st.markdown("### 📊 Model Evaluation")
+    # Model Training History / Evaluation
+    st.markdown("### 📊 Model Training History & Evaluation")
     
-    # Load evaluation results if available
-    eval_path = "../static/evaluation_results.json"
-    if os.path.exists(eval_path):
-        try:
-            with open(eval_path, 'r') as f:
-                eval_results = json.load(f)
-            
-            # Key metrics
-            st.markdown("#### 🎯 Key Performance Metrics")
-            col1, col2, col3, col4 = st.columns(4)
-            
-            with col1:
-                st.metric("Overall Accuracy", f"{eval_results['overall_metrics']['accuracy']:.4f}")
-            with col2:
-                st.metric("ROC AUC", f"{eval_results['roc_auc']:.4f}")
-            with col3:
-                st.metric("Average Precision", f"{eval_results['average_precision']:.4f}")
-            with col4:
-                st.metric("Macro F1-Score", f"{eval_results['overall_metrics']['macro_avg_f1']:.4f}")
-            
-            # Per-class metrics
-            st.markdown("#### 📈 Per-Class Performance")
-            per_class = eval_results['per_class_metrics']
-            class_names = list(eval_results['classification_report'].keys())[:-3]  # Exclude 'accuracy', 'macro avg', 'weighted avg'
-            
-            class_metrics_df = pd.DataFrame({
-                'Class': class_names,
-                'Precision': per_class['precision'],
-                'Recall': per_class['recall'],
-                'F1-Score': per_class['f1_score']
-            })
-            
-            st.dataframe(class_metrics_df, use_container_width=True)
-            
-            # Classification report
-            st.markdown("#### 📋 Detailed Classification Report")
-            report_df = pd.DataFrame(eval_results['classification_report']).T
-            st.dataframe(report_df, use_container_width=True)
-            
-        except Exception as e:
-            st.error(f"Error loading evaluation results: {str(e)}")
-    
-    # Display evaluation visualizations
-    st.markdown("### 📸 Evaluation Visualizations")
-    
-    eval_viz_files = [
-        ("Confusion Matrix", "confusion_matrix.png"),
-        ("ROC Curve", "roc_curve.png"),
-        ("Precision-Recall Curve", "precision_recall_curve.png"),
-        ("Training History", "training_history.png")
-    ]
-    
-    for title, filename in eval_viz_files:
-        file_path = f"../static/{filename}"
-        if os.path.exists(file_path):
-            st.markdown(f"#### {title}")
-            st.image(file_path, use_column_width=True)
-        else:
-            st.info(f"📊 {title} visualization not found. Run the training script to generate it.")
-    
-    # Model information
-    st.markdown("### 📋 Model Information")
-    
-    model_path = "../models/best_model.h5"
-    if os.path.exists(model_path):
-        file_size = os.path.getsize(model_path) / (1024 * 1024)  # MB
-        st.info(f"📁 Model file exists: {model_path} ({file_size:.2f} MB)")
-        
-        # Check for training history
-        history_path = "../models/history.json"
-        if os.path.exists(history_path):
-            try:
-                with open(history_path, 'r') as f:
-                    history = json.load(f)
-                
-                st.markdown("#### 📈 Training History")
-                
-                # Plot training metrics
-                epochs = range(1, len(history['accuracy']) + 1)
-                
-                fig = go.Figure()
-                fig.add_trace(go.Scatter(x=epochs, y=history['accuracy'], name='Training Accuracy'))
-                fig.add_trace(go.Scatter(x=epochs, y=history['val_accuracy'], name='Validation Accuracy'))
-                fig.update_layout(title='Model Accuracy Over Time', xaxis_title='Epoch', yaxis_title='Accuracy')
-                st.plotly_chart(fig, use_container_width=True)
-                
-                # Final metrics
-                col1, col2, col3, col4 = st.columns(4)
-                with col1:
-                    st.metric("Final Training Accuracy", f"{history['accuracy'][-1]:.4f}")
-                with col2:
-                    st.metric("Final Validation Accuracy", f"{history['val_accuracy'][-1]:.4f}")
-                with col3:
-                    st.metric("Final Training Loss", f"{history['loss'][-1]:.4f}")
-                with col4:
-                    st.metric("Final Validation Loss", f"{history['val_loss'][-1]:.4f}")
-                    
-            except Exception as e:
-                st.error(f"❌ Error loading training history: {str(e)}")
-    else:
-        st.warning("⚠️ No model file found. Please train a model first.")
+    try:
+        with open("models/history.json", "r") as f:
+            history = json.load(f)
+
+        best_epoch = int(np.argmax(history["val_accuracy"]))  # Index of best val_accuracy
+
+        epochs = np.arange(1, len(history["accuracy"]) + 1)
+        best_epoch = best_epoch  # Adjust based on your best epoch
+
+        fig, axs = plt.subplots(2, 2, figsize=(12, 8))
+
+        # Accuracy
+        axs[0, 0].plot(epochs, history["accuracy"], label="Train Accuracy")
+        axs[0, 0].plot(epochs, history["val_accuracy"], label="Val Accuracy")
+        axs[0, 0].axvline(best_epoch+1, color="g", linestyle="--", label="Best Epoch")
+        axs[0, 0].set_title("Accuracy")
+        axs[0, 0].legend()
+
+        # Loss
+        axs[0, 1].plot(epochs, history["loss"], label="Train Loss")
+        axs[0, 1].plot(epochs, history["val_loss"], label="Val Loss")
+        axs[0, 1].axvline(best_epoch+1, color="g", linestyle="--", label="Best Epoch")
+        axs[0, 1].set_title("Loss")
+        axs[0, 1].legend()
+
+        # AUC
+        axs[1, 0].plot(epochs, history.get("auc", []), label="Train AUC")
+        axs[1, 0].plot(epochs, history.get("val_auc", []), label="Val AUC")
+        axs[1, 0].axvline(best_epoch+1, color="g", linestyle="--", label="Best Epoch")
+        axs[1, 0].set_title("AUC")
+        axs[1, 0].legend()
+
+        # Precision
+        axs[1, 1].plot(epochs, history.get("precision", []), label="Train Precision")
+        axs[1, 1].plot(epochs, history.get("val_precision", []), label="Val Precision")
+        axs[1, 1].axvline(best_epoch+1, color="g", linestyle="--", label="Best Epoch")
+        axs[1, 1].set_title("Precision")
+        axs[1, 1].legend()
+
+        plt.tight_layout()
+        st.pyplot(fig)
+
+        # Optionally, summarize best epoch metrics
+        st.markdown(f"**Best Epoch (Early Stopping): {best_epoch+1}**")
+        st.markdown(f"- Validation Accuracy: {history['val_accuracy'][best_epoch]:.3f}")
+        st.markdown(f"- Validation Loss: {history['val_loss'][best_epoch]:.3f}")
+        if 'val_auc' in history:
+            st.markdown(f"- Validation AUC: {history['val_auc'][best_epoch]:.3f}")
+        if 'val_precision' in history:
+            st.markdown(f"- Validation Precision: {history['val_precision'][best_epoch]:.3f}")
+
+    except Exception as e:
+        st.warning("Training history not found or error reading history.json.")
+        st.text(f"Error: {e}")
 
 def show_upload_data():
     """Display data upload page."""
     st.markdown("## 📋 Upload Training Data")
+    
+    # Check API status first
+    is_online, _ = check_api_status(st.session_state.api_url)
+    if not is_online:
+        st.error("❌ API is not available. Please check the API status in the sidebar.")
+        return
     
     st.markdown("### 📁 Upload New Images")
     st.markdown("Upload new images to add to the training dataset.")
@@ -705,43 +604,25 @@ def show_upload_data():
         # Label selection
         label = st.selectbox(
             "Select the correct label for these images",
-            ["normal", "glaucoma"],
-            help="Choose the correct classification for the uploaded images"
+            ["normal", "glaucoma"]
         )
         
         if st.button("📤 Upload to Training Data"):
             with st.spinner("🔄 Uploading images..."):
                 try:
-                    # Create directory structure
-                    upload_dir = f"../data/new_uploads/{label}"
-                    os.makedirs(upload_dir, exist_ok=True)
-                    
-                    # Import database
-                    import sys
-                    sys.path.append(os.path.dirname(os.path.abspath(__file__)) + "/..")
-                    from src.database import get_database
-                    db = get_database()
-                    
-                    uploaded_count = 0
+                    # Upload each file
                     for uploaded_file in uploaded_files:
-                        # Save file
-                        file_path = os.path.join(upload_dir, uploaded_file.name)
-                        file_content = uploaded_file.getbuffer()
-                        
-                        with open(file_path, "wb") as f:
-                            f.write(file_content)
-                        
-                        # Save to database
-                        db.save_upload(
-                            filename=uploaded_file.name,
-                            file_path=file_path,
-                            label=label,
-                            file_size=len(file_content)
+                        response = requests.post(
+                            f"{st.session_state.api_url}/upload",
+                            files={"file": (uploaded_file.name, uploaded_file.getvalue())},
+                            data={"label": label},
+                            timeout=30
                         )
-                        
-                        uploaded_count += 1
+                        if response.status_code == 200:
+                            st.success(f"✅ Successfully uploaded: {uploaded_file.name}")
+                        else:
+                            st.error(f"❌ Failed to upload: {uploaded_file.name}")
                     
-                    st.success(f"✅ Successfully uploaded {uploaded_count} images to {upload_dir}")
                     st.info("Images are ready for retraining. Use the 'Retrain Model' button to include them in training.")
                     
                 except Exception as e:
