@@ -158,101 +158,25 @@ async def predict_batch_api(files: list[UploadFile] = File(...)):
     return {"results": results}
 
 @app.post("/upload")
-@monitor_request("upload", "POST")
 async def upload_data(file: UploadFile = File(...), label: str = Form(...)):
-    start_time_request = time.time()
-
-    if label.lower() not in ['normal', 'glaucoma']:
-        response_time = time.time() - start_time_request
-        metrics_collector.record_request("upload", "POST", response_time, 400)
-        return JSONResponse(
-            content={"error": "Invalid label. Use 'normal' or 'glaucoma'."},
-            status_code=400
-        )
-
-    if not file.filename.lower().endswith(('.png', '.jpg', '.jpeg')):
-        response_time = time.time() - start_time_request
-        metrics_collector.record_request("upload", "POST", response_time, 400)
-        return JSONResponse(
-            content={"error": "Invalid file type. Please upload PNG, JPG, or JPEG images."},
-            status_code=400
-        )
-
-    try:
-        from database import get_database
-        db = get_database()
-
-        train_dir = f"data/new_uploads/{label.lower()}"
-        os.makedirs(train_dir, exist_ok=True)
-        file_path = os.path.join(train_dir, file.filename)
-
-        file_content = await file.read()
-        with open(file_path, "wb") as f:
-            f.write(file_content)
-
-        db.save_upload(
-            filename=file.filename,
-            file_path=file_path,
-            label=label.lower(),
-            file_size=len(file_content)
-        )
-
-        response_time = time.time() - start_time_request
-        metrics_collector.record_request("upload", "POST", response_time, 200)
-
-        return {
-            "message": f"File {file.filename} uploaded to {train_dir}",
-            "uploaded_path": file_path,
-            "database_id": "saved"
-        }
-
-    except Exception as e:
-        response_time = time.time() - start_time_request
-        metrics_collector.record_request("upload", "POST", response_time, 500)
-        return JSONResponse(
-            content={"error": f"Upload failed: {str(e)}"},
-            status_code=500
-        )
+    train_dir = f"data/new_uploads/{label}"
+    os.makedirs(train_dir, exist_ok=True)
+    file_path = os.path.join(train_dir, file.filename)
+    with open(file_path, "wb") as f:
+        f.write(await file.read())
+    return {"message": f"File {file.filename} uploaded to {train_dir}"}
 
 @app.post("/retrain")
-@monitor_request("retrain", "POST")
 def retrain_model_api():
-    start_time_request = time.time()
-
-    try:
-        import subprocess
-        retraining_script_path = os.path.join("src", "retraining.py")
-        result = subprocess.run(["python", retraining_script_path], capture_output=True, text=True)
-
-        global model
-        if download_model_from_drive() or os.path.exists(MODEL_PATH):
-            model = load_trained_model(MODEL_PATH)
-            response_time = time.time() - start_time_request
-            metrics_collector.record_request("retrain", "POST", response_time, 200)
-            return {
-                "message": "Retraining completed successfully.",
-                "stdout": result.stdout,
-                "stderr": result.stderr,
-                "model_reloaded": True
-            }
-        else:
-            response_time = time.time() - start_time_request
-            metrics_collector.record_request("retrain", "POST", response_time, 500)
-            return {
-                "message": "Retraining completed but model could not be reloaded.",
-                "stdout": result.stdout,
-                "stderr": result.stderr,
-                "model_reloaded": False
-            }
-
-    except Exception as e:
-        response_time = time.time() - start_time_request
-        metrics_collector.record_request("retrain", "POST", response_time, 500)
-        return JSONResponse(
-            content={"error": f"Retraining failed: {str(e)}"},
-            status_code=500
-        )  
-
+    import subprocess
+    result = subprocess.run(["python", "src/retrain.py"], capture_output=True, text=True)
+    global model
+    model = load_trained_model(MODEL_PATH)  # reload updated model
+    return {
+        "message": "Retraining completed.",
+        "stdout": result.stdout,
+        "stderr": result.stderr
+    }
 @app.get("/metrics")
 def get_metrics():
     return metrics_collector.get_metrics_summary()
