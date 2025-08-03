@@ -148,7 +148,7 @@ def show_home_page():
     
     # Try to get API status
     try:
-        response = requests.get("http://localhost:8000/status", timeout=5)
+        response = requests.get("https://ml-et3r.onrender.com/docs#/default/get_status_status_get", timeout=5)
         if response.status_code == 200:
             status_data = response.json()
             col1, col2, col3 = st.columns(3)
@@ -161,7 +161,7 @@ def show_home_page():
             
             # Get metrics if available
             try:
-                metrics_response = requests.get("http://localhost:8000/metrics", timeout=5)
+                metrics_response = requests.get("https://ml-et3r.onrender.com/docs#/default/get_metrics_metrics_get", timeout=5)
                 if metrics_response.status_code == 200:
                     metrics = metrics_response.json()
                     if metrics:

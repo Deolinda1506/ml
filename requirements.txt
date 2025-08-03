@@ -15,5 +15,6 @@ psutil
 streamlit
 gdown
 plotly
+psycopg2-binary
 
 
