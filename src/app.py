@@ -179,7 +179,7 @@ async def upload_data(file: UploadFile = File(...), label: str = Form(...)):
         )
 
     try:
-        from .database import get_database
+        from database import get_database
         db = get_database()
 
         train_dir = f"data/new_uploads/{label.lower()}"
@@ -261,7 +261,7 @@ def get_prometheus_metrics():
 
 @app.get("/dataset_info")
 def get_dataset_info():
-    from .preprocessing import get_dataset_info
+    from preprocessing import get_dataset_info
     train_info = get_dataset_info("/workspaces/ml/data/train")
     test_info = get_dataset_info("/workspaces/ml/data/test")
     return {
