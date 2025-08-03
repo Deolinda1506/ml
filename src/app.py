@@ -221,11 +221,8 @@ def retrain_model_api():
 
     try:
         import subprocess
-        from pathlib import Path
-
-        # Dynamically resolve path
-        retraining_script_path = Path(__file__).parent / "retraining.py"
-        result = subprocess.run(["python", str(retraining_script_path)], capture_output=True, text=True)
+        retraining_script_path = os.path.join("src", "retraining.py")
+        result = subprocess.run(["python", retraining_script_path], capture_output=True, text=True)
 
         global model
         if download_model_from_drive() or os.path.exists(MODEL_PATH):
@@ -254,9 +251,7 @@ def retrain_model_api():
         return JSONResponse(
             content={"error": f"Retraining failed: {str(e)}"},
             status_code=500
-        )
-
-        
+        )  
 
 @app.get("/metrics")
 def get_metrics():
