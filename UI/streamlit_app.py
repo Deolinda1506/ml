@@ -1,20 +1,3 @@
-"""
-GLAUCOMA DETECTION - STREAMLIT WEB APP
-======================================
-
-A user-friendly web interface for glaucoma detection using deep learning.
-
-Features:
-- Single image prediction
-- Batch image processing
-- Dataset analysis
-- Model training interface
-- Data upload functionality
-
-Usage:
-    streamlit run UI/streamlit_app.py
-"""
-
 import streamlit as st
 import os
 import numpy as np
