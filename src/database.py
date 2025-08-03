@@ -1,14 +1,3 @@
-"""
-Database operations for Glaucoma Detection System
-================================================
-
-This module handles database operations for storing:
-- Prediction results
-- Model metadata
-- Training history
-- User uploads
-"""
-
 import sqlite3
 import json
 import os

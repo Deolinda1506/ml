@@ -12,7 +12,7 @@ start_time = time.time()
 
 # Load model at startup
 MODEL_PATH = "models/best_model.h5"
-CLASS_LABELS = {0: 'Normal', 1: 'Glaucoma'}  # Adapted for glaucoma detection
+CLASS_LABELS = {0: 'Normal', 1: 'Glaucoma'}  
 
 # Initialize model (will be loaded when available)
 model = None
@@ -276,5 +276,4 @@ def get_dataset_info():
         "test_data": test_info
     }
 
-if __name__ == "__main__":
-    uvicorn.run("src.app:app", host="0.0.0.0", port=8000, reload=True) 
+pass
