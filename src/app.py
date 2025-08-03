@@ -276,4 +276,5 @@ def get_dataset_info():
         "test_data": test_info
     }
 
-pass
+if __name__ == "__main__":
+    uvicorn.run("src.app:app", host="0.0.0.0", port=8000, reload=True) 

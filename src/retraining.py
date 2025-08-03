@@ -13,9 +13,9 @@ from .train_model import train_model
 
 # Model and data paths for glaucoma detection
 MODEL_PATH = "models/best_model.h5"
-TRAIN_DIR = "data/train"
-TEST_DIR = "data/test"
-UPLOAD_DIR = "data/new_uploads"
+TRAIN_DIR = "/workspaces/ml/data/train"
+TEST_DIR = "/workspaces/ml/data/test"
+UPLOAD_DIR = "/workspaces/ml/data/new_uploads"
 IMAGE_SIZE = (224, 224)  # Updated to match model.py
 BATCH_SIZE = 32
 EPOCHS = 20

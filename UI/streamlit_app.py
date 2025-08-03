@@ -24,11 +24,12 @@ import plotly.graph_objects as go
 from PIL import Image
 import tempfile
 import json
+import requests
 from datetime import datetime
 
 # Import our custom modules
 import sys
-sys.path.append(os.path.abspath('..'))
+sys.path.append(os.path.dirname(os.path.abspath(__file__)) + "/..")
 from src.prediction import load_trained_model, predict_image, predict_batch
 from src.preprocessing import get_dataset_info
 from src.model import build_model, get_data_generators, calculate_class_weights
@@ -164,7 +165,6 @@ def show_home_page():
     
     # Try to get API status
     try:
-        import requests
         response = requests.get("http://localhost:8000/status", timeout=5)
         if response.status_code == 200:
             status_data = response.json()
@@ -452,7 +452,7 @@ def show_dataset_analysis():
             ])
             fig.update_layout(title="Class Distribution", xaxis_title="Classes", yaxis_title="Number of Images")
             st.plotly_chart(fig, use_container_width=True)
-            
+                
         except Exception as e:
             st.error(f"Error loading dataset summary: {str(e)}")
     
@@ -477,8 +477,8 @@ def show_dataset_analysis():
     # Dataset statistics
     st.markdown("### 📋 Dataset Statistics")
     
-    train_path = "../data/train"
-    test_path = "../data/test"
+    train_path = "/workspaces/ml/data/train"
+    test_path = "/workspaces/ml/data/test"
     
     if os.path.exists(train_path):
         train_stats = {}
