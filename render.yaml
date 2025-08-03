@@ -6,12 +6,15 @@ services:
     startCommand: "uvicorn src.app:app --host=0.0.0.0 --port=10000"
     plan: free
 
-services:
+
   - type: web
-    name: streamlit-app
+    name: glaucoma-streamlit
     env: python
-    buildCommand: pip install -r requirements.txt
-    startCommand: streamlit run streamlit_app.py --server.port $PORT
+    buildCommand: "pip install -r requirements.txt"
+    startCommand: "streamlit run UI/streamlit_app.py --server.port=10000 --server.address=0.0.0.0"
+    plan: free
     envVars:
-      - key: PORT
-        value: 10000
+      - key: PYTHON_VERSION
+        value: 3.12.0
+      - key: API_URL
+        value: https://glaucoma-api.onrender.com
