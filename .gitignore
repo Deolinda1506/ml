@@ -1,0 +1,38 @@
+
+# Environment files
+.env
+.env.*
+
+# Virtual environments
+env/
+.venv/
+venv/
+# Byte-compiled files
+__pycache__/
+*.py[cod]
+
+# Virtual environment
+.env/
+venv/
+env/
+
+# Jupyter
+.ipynb_checkpoints/
+
+# System
+.DS_Store
+
+# Model files
+*.h5
+*.pt
+*.pth
+
+# Logs
+*.log
+
+# VSCode
+.vscode/
+
+# Data
+*.csv
+*.json
