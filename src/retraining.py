@@ -7,9 +7,9 @@ from tensorflow.keras.models import load_model
 from tensorflow.keras.optimizers import Adam
 from tensorflow.keras.metrics import Precision, Recall, AUC
 from tensorflow.keras.callbacks import EarlyStopping, ModelCheckpoint
-from .preprocessing import load_data
-from .model import calculate_class_weights
-from .train_model import train_model
+from preprocessing import load_data
+from model import calculate_class_weights
+from train_model import train_model
 
 # Model and data paths for glaucoma detection
 MODEL_PATH = "models/best_model.h5"

@@ -1,5 +1,5 @@
 from tensorflow.keras.callbacks import EarlyStopping, ModelCheckpoint
-from .model import build_model
+from model import build_model
 
 def train_model(train_gen, val_gen, input_shape, num_classes, class_weight=None, model_path='../models/best_model.h5'):
     """

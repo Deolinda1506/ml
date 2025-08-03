@@ -1,13 +1,3 @@
-"""
-Monitoring and Metrics for Glaucoma Detection System
-===================================================
-
-This module provides monitoring capabilities including:
-- Request metrics
-- Model performance metrics
-- System health monitoring
-- Prometheus metrics export
-"""
 
 import time
 import psutil
