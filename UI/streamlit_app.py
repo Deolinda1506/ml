@@ -193,23 +193,5 @@ class Config:
             }
         }
 
-# Usage instructions
-"""
-To run load tests:
-
-1. Start the API server:
-   python src/app.py
-
-2. Run normal load test:
-   locust -f locustfile.py --host=http://localhost:8000 --users=10 --spawn-rate=2 --run-time=5m
-
-3. Run stress test:
-   locust -f locustfile.py --host=http://localhost:8000 --users=100 --spawn-rate=10 --run-time=15m
-
-4. Open browser to http://localhost:8089 for Locust web interface
-
-Expected Results:
-- Response times under 2 seconds for normal load
-- Response times under 5 seconds for high load
-- Error rate under 5% for all scenarios
-""" 
+if __name__ == "__main__":
+    main()  

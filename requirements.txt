@@ -17,6 +17,10 @@ gdown
 plotly
 psycopg2-binary
 locust
-
+streamlit
+numpy
+pandas
+scikit-learn
+matplotlib
 
 

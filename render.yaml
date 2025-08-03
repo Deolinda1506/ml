@@ -6,3 +6,12 @@ services:
     startCommand: "uvicorn src.app:app --host=0.0.0.0 --port=10000"
     plan: free
 
+services:
+  - type: web
+    name: streamlit-app
+    env: python
+    buildCommand: pip install -r requirements.txt
+    startCommand: streamlit run streamlit_app.py --server.port $PORT
+    envVars:
+      - key: PORT
+        value: 10000
