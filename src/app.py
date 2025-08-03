@@ -268,8 +268,8 @@ def get_dataset_info():
     """Get information about the current dataset."""
     from .preprocessing import get_dataset_info
     
-    train_info = get_dataset_info("data/train")
-    test_info = get_dataset_info("data/test")
+    train_info = get_dataset_info("/workspaces/ml/data/train")
+    test_info = get_dataset_info("/workspaces/ml/data/test")
     
     return {
         "train_data": train_info,

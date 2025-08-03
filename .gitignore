@@ -37,4 +37,4 @@ env/
 *.csv
 *.json
 
-notebook/models/best_model.h5
+/workspaces/ml/models
