@@ -12,10 +12,11 @@ This module provides monitoring capabilities including:
 import time
 import psutil
 import threading
-from datetime import datetime, timedelta
-from typing import Dict, List, Optional
+from datetime import datetime
+from typing import Dict, Optional
 from collections import defaultdict, deque
-import json
+import functools
+import asyncio
 
 class MetricsCollector:
     """Collects and stores system metrics."""
@@ -162,11 +163,11 @@ class MetricsCollector:
         
         return '\n'.join(metrics)
 
-# Global metrics collector
+# Global metrics collector instance
 metrics_collector = MetricsCollector()
 
 def get_metrics_collector() -> MetricsCollector:
-    """Get the global metrics collector."""
+    """Get the global metrics collector instance."""
     return metrics_collector
 
 class PerformanceMonitor:
@@ -193,10 +194,36 @@ class PerformanceMonitor:
             )
 
 def monitor_request(endpoint: str, method: str = "GET"):
-    """Decorator for monitoring request performance."""
+    """Decorator for monitoring request performance, supporting sync and async."""
     def decorator(func):
-        def wrapper(*args, **kwargs):
-            with PerformanceMonitor(endpoint, method):
-                return func(*args, **kwargs)
-        return wrapper
-    return decorator 
+        if asyncio.iscoroutinefunction(func):
+            @functools.wraps(func)
+            async def async_wrapper(*args, **kwargs):
+                start_time = time.time()
+                status_code = 200
+                try:
+                    result = await func(*args, **kwargs)
+                except Exception:
+                    status_code = 500
+                    raise
+                finally:
+                    response_time = time.time() - start_time
+                    metrics_collector.record_request(endpoint, method, response_time, status_code)
+                return result
+            return async_wrapper
+        else:
+            @functools.wraps(func)
+            def sync_wrapper(*args, **kwargs):
+                start_time = time.time()
+                status_code = 200
+                try:
+                    result = func(*args, **kwargs)
+                except Exception:
+                    status_code = 500
+                    raise
+                finally:
+                    response_time = time.time() - start_time
+                    metrics_collector.record_request(endpoint, method, response_time, status_code)
+                return result
+            return sync_wrapper
+    return decorator
