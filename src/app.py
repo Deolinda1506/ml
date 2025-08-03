@@ -4,8 +4,8 @@ from fastapi.middleware.cors import CORSMiddleware
 import uvicorn
 import os
 import time
-from .prediction import load_trained_model, predict_image, predict_batch
-from .monitoring import monitor_request, get_metrics_collector
+from prediction import load_trained_model, predict_image, predict_batch
+from monitoring import monitor_request, get_metrics_collector
 
 app = FastAPI(title="Glaucoma Detection API")
 start_time = time.time()
