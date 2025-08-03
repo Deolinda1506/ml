@@ -57,9 +57,12 @@ def build_model(input_shape=INPUT_SHAPE, num_classes=NUM_CLASSES):
 
     # Compile for binary classification (normal vs glaucoma)
     model.compile(
-        optimizer=Adam(learning_rate=0.001),
+        optimizer='adam',
         loss='categorical_crossentropy',
-        metrics=['accuracy', Precision(), Recall(), AUC()]
+        metrics=[
+            'accuracy',
+            tf.keras.metrics.AUC(name='auc')
+        ]
     )
     
     return model

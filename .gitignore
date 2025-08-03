@@ -36,3 +36,5 @@ env/
 # Data
 *.csv
 *.json
+
+notebook/models/best_model.h5
