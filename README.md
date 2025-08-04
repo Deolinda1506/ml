@@ -5,11 +5,15 @@ A comprehensive deep learning-based system for detecting glaucoma from retinal i
 ## Video Demo
 
 **Watch the complete system demonstration:**
-[![YouTube Demo](https://img.shields.io/badge/YouTube-Demo%20Video-red?style=for-the-badge&logo=youtube)](https://youtu.be/your-video-id)
+[![Demo Video](https://img.shields.io/badge/Demo-Video%20Presentation-blue?style=for-the-badge&logo=google-drive)](https://drive.google.com/file/d/1L3FmAfsVjgYPL41fubYAFYJQUUqvyQFf/view?usp=sharing)
 
-*Replace `your-video-id` with your actual YouTube video ID*
-
-> **Note**: Video demo coming soon! The system is fully functional and ready for testing.
+**Demo Features Covered:**
+- Complete system walkthrough
+- Image upload and prediction process
+- Batch processing demonstration
+- Model training and evaluation
+- API usage examples
+- Performance monitoring
 
 ## Live Demo & API
 
@@ -29,8 +33,6 @@ This glaucoma detection system is designed to assist medical professionals in ea
 - **Cloud Deployment**: Ready-to-deploy on Render platform
 - **Load Testing**: Comprehensive performance testing with Locust
 
-### Medical Disclaimer:
-**This system is for educational and research purposes only. It should not be used for actual medical diagnosis without proper validation and clinical approval.**
 
 ## Quick Setup Guide
 
@@ -92,14 +94,6 @@ python src/app.py
 # In a new terminal, start the Streamlit frontend
 streamlit run UI/streamlit_app.py
 ```
-
-### 5. Access the System
-
-- **Web Interface**: http://localhost:8501
-- **API Documentation**: http://localhost:8000/docs
-- **API Endpoint**: http://localhost:8000
-
-## Load Testing Results
 
 ### Flood Request Simulation
 
@@ -172,6 +166,8 @@ The notebook contains comprehensive analysis and training steps:
 - **Batch Prediction**: `predict_batch(model, image_paths, class_labels)`
 - **Performance Metrics**: Accuracy, Precision, Recall, F1-Score, AUC
 - **Confidence Scoring**: Softmax probability outputs
+- **Model Evaluation**: Cross-validation and test set performance
+- **Prediction Pipeline**: Image preprocessing → Model inference → Post-processing
 
 ### Generated Visualizations:
 - **Training History**: Loss and accuracy curves
@@ -192,6 +188,9 @@ The notebook contains comprehensive analysis and training steps:
 - **Input Shape**: (224, 224, 3) RGB images
 - **Output**: 2 classes (Normal, Glaucoma)
 - **Accuracy**: 94.2% on test set
+- **Model Type**: Deep Learning CNN
+- **Framework**: TensorFlow/Keras
+- **File Extension**: .h5 (HDF5 format)
 
 ### Model Download:
 The model is automatically downloaded from Google Drive on first run:
@@ -306,32 +305,4 @@ ml/
 4. **CUDA/GPU issues**: Install tensorflow-gpu for GPU support
 5. **Database issues**: Check DATABASE_URL environment variable
 
-## Contributing
-
-1. Fork the repository
-2. Create a feature branch
-3. Make your changes
-4. Add tests if applicable
-5. Submit a pull request
-
-## License
-
-This project is licensed under the MIT License.
-
-## Acknowledgments
-
-- Medical imaging community for datasets
-- TensorFlow and Keras teams
-- Streamlit and FastAPI developers
-- Render for deployment platform
-
-## Support
-
-For questions or issues:
-- Create an issue on GitHub
-- Check the troubleshooting section
-- Review the documentation
-
----
-
-**Medical Disclaimer**: This system is for educational and research purposes only. It should not be used for actual medical diagnosis without proper validation and clinical approval. 
+ 
