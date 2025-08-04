@@ -1,11 +1,5 @@
-"""
-Locust Load Testing for Glaucoma Detection API
-==============================================
-
-This file simulates flood requests to test the API performance.
-Run with: locust -f locustfile.py --host=http://localhost:8000
-"""
-
+from gevent import monkey
+monkey.patch_all()
 import time
 import random
 from locust import HttpUser, task, between
@@ -193,5 +187,3 @@ class Config:
             }
         }
 
-if __name__ == "__main__":
-    main()  
